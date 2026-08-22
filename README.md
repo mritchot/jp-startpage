@@ -98,7 +98,7 @@ PUSH overwrites the gist, PULL overwrites what is local. The line above the butt
 
 **The token never leaves the browser you typed it into**: it is excluded from the synced payload and from the `10 CONFIG` export, so sharing a config cannot leak it. The gist ID is left out of exports for the same reason — a GitHub secret gist is unlisted rather than private, so anyone holding the URL can read it. Treat the ID as semi-private and type it into each browser by hand. And **dropped images do not sync**, since they are data URLs living in a separate localStorage key.
 
-The token is stored in plain localStorage, which anyone with access to that browser profile can read.
+The token is stored in plain localStorage, which anyone with access to that browser profile can read. localStorage is also shared across an origin: every site under the same `username.github.io` shares one store, so any other GitHub Pages site on that account could read a token pasted into a Pages-hosted copy. Keep sync to the extension or a locally opened copy.
 
 ## DETAILS
 
