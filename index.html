@@ -30,8 +30,8 @@ input,select,button,textarea{font-family:'IBM Plex Mono',ui-monospace,monospace}
   background:radial-gradient(ellipse at 50% 45%,transparent 40%,var(--vig,rgba(0,0,0,.55)) 100%)}
 .grid{position:fixed;inset:0;pointer-events:none;z-index:80;opacity:1;
   background-image:
-    repeating-linear-gradient(to right,var(--grid,rgba(0,0,0,.05)) 0 1px,transparent 1px var(--gridGap,9px)),
-    repeating-linear-gradient(to bottom,var(--grid,rgba(0,0,0,.05)) 0 1px,transparent 1px var(--gridGap,9px))}
+    repeating-linear-gradient(to right,var(--grid,rgba(0,0,0,.03)) 0 1px,transparent 1px var(--gridGap,4.5px)),
+    repeating-linear-gradient(to bottom,var(--grid,rgba(0,0,0,.03)) 0 1px,transparent 1px var(--gridGap,4.5px))}
 
 /* ---- quote ---- */
 .quote{position:fixed;top:34px;left:40px;max-width:290px;display:flex;flex-direction:column;gap:9px;cursor:pointer;z-index:20}
@@ -100,8 +100,8 @@ input,select,button,textarea{font-family:'IBM Plex Mono',ui-monospace,monospace}
 .lnk:hover{color:var(--accent)}
 .lnk img{width:15px;height:15px;flex:none;image-rendering:pixelated;filter:grayscale(1) contrast(1.3) brightness(1.2);opacity:.9}
 .lnk>span{overflow:hidden;text-overflow:ellipsis}
-.sl{color:var(--dim)}
-.hk{color:var(--accent)}
+.sl{color:var(--accent);opacity:.55}
+.hk{display:inline-block;background:var(--accent);color:var(--bg);padding-inline:2px}
 
 /* ---- config launcher ---- */
 .cfg-btn{position:fixed;bottom:28px;right:28px;display:flex;align-items:center;gap:10px;border:1px solid var(--line);
@@ -213,10 +213,10 @@ var BASE_QUOTES = [
 var QUOTES = BASE_QUOTES.slice();
 
 var ENGINES = [
-  { id: 'g', name: 'GOOGLE',     url: 'https://www.google.com/search?q=' },
-  { id: 'd', name: 'DUCKDUCKGO', url: 'https://duckduckgo.com/?q=' },
-  { id: 'y', name: 'YOUTUBE',    url: 'https://www.youtube.com/results?search_query=' },
-  { id: 'w', name: 'WIKIPEDIA',  url: 'https://en.wikipedia.org/w/index.php?search=' }
+  { id: 'k', name: 'KAGI',      url: 'https://kagi.com/search?q=' },
+  { id: 'g', name: 'GOOGLE',    url: 'https://www.google.com/search?q=' },
+  { id: 'w', name: 'WIKIPEDIA', url: 'https://en.wikipedia.org/w/index.php?search=' },
+  { id: 'y', name: 'YOUTUBE',   url: 'https://www.youtube.com/results?search_query=' }
 ];
 
 var SCHED = [
@@ -254,13 +254,13 @@ function defaults() {
     editCatId: 'workspace', nl: '', nk: '', nu: '',
     textScale: 1, fitMode: 'fit', boxH: 320,
     align: 'center', imgs: [], imgIdx: 0, imgSched: 'day', quoteSched: 'day',
-    cmdOpen: false, query: '', engine: 'g', searchEnabled: true, linkIcons: false,
+    cmdOpen: false, query: '', engine: 'k', searchEnabled: true, linkIcons: false,
     greetMode: 'static', themeMode: 'auto',
     greets: { morning: 'おはよう', afternoon: 'こんにちは', evening: 'こんばんは', night: 'おやすみ' },
     bands: { morning: 5, afternoon: 11, evening: 17, night: 22 },
     tabTitle: '新規タブ · START', favGlyph: '端',
     cfgText: '', cfgMsg: '', dragCid: null, dragLid: null,
-    theme: { a: 0, b: 0, grid: true,
+    theme: { a: 0, b: 0, grid: false,
              ac: { d: '#d4cdb8', l: '#33302a' }, gc: { d: '#12100d', l: '#c9c6b5' } },
     cats: [
       { id: 'workspace', name: 'workspace', key: 'w', links: [
@@ -403,7 +403,7 @@ function applyTheme() {
   Sv('--accent',  inv ? A.l : A.d);
   Sv('--accent2', inv ? '#8c3122' : '#c1503c');
   Sv('--vig',     inv ? 'rgba(120,112,92,.24)' : 'rgba(10,6,3,.62)');
-  Sv('--grid',    inv ? 'rgba(69,65,54,.055)' : 'rgba(190,175,150,.032)');
+  Sv('--grid',    inv ? 'rgba(69,65,54,.03)' : 'rgba(190,175,150,.018)');
   Sv('--imgBg',   inv ? 'rgba(69,65,54,.08)' : 'rgba(0,0,0,.25)');
   if (D.grid) D.grid.style.opacity = t.grid ? '1' : '0';
   document.body.style.background = inv ? G.l : G.d;
@@ -441,7 +441,9 @@ function effGreeting() {
 function computeSizing() {
   var B = { greet: 17, greetLs: 5, date: 13, wk: 9, time: 19, cat: 14, catLs: 2, link: 14 };
   var need = function (sc) {
-    var gN = (effGreeting() || '').length || 1;
+    var texts = [S.greeting];
+    ['morning', 'afternoon', 'evening', 'night'].forEach(function (k) { texts.push(S.greets[k]); });
+    var gN = Math.max.apply(null, texts.map(function (t) { return (t || '').length; })) || 1;
     var g = gN * (B.greet * sc + B.greetLs * sc) + 46;
     var timeN = S.clock24 ? 5 : 8;
     var c = 30 + 10 * (B.date * sc + 1) + 3 * (B.wk * sc + 2) + timeN * (B.time * sc + 1) + 18;
@@ -1208,6 +1210,7 @@ function buildLinkRow(l) {
 function renderTray() {
   if (S.trayOpen && _dragL != null && D.tray && D.linksBox) { reflowLinks(); return; }
   var focus = snapFocus();
+  var scrolled = D.tray ? D.tray.scrollTop : 0;
   clear(D.trayHost);
   D.tray = null;
   D.linksBox = null;
@@ -1297,7 +1300,12 @@ function renderTray() {
       set({ greetMode: S.greetMode === 'time' ? 'static' : 'time' });
     }),
     greetBody,
-    note('START HOUR · BAND · TEXT')
+    S.greetMode === 'time'
+      ? h('div', { s: 'display:flex;gap:8px' }, [
+          h('span', { c: 'note', s: 'width:76px;flex:none;letter-spacing:1px', t: 'START HOUR' }),
+          h('span', { c: 'note', t: 'TEXT' })
+        ])
+      : note('TEXT')
   ]);
 
   /* 04 WEATHER */
@@ -1437,7 +1445,7 @@ function renderTray() {
         { s: 'width:96px;flex:none' })
     ]),
     h('div', { c: 'note tall' }, [
-      '/ OPENS THE LINE · PREFIX g y w d TO PICK AN ENGINE',
+      '/ OPENS THE LINE · PREFIX k g w y TO PICK AN ENGINE',
       h('br'),
       'EXAMPLE — / g pixel art'
     ])
@@ -1492,6 +1500,7 @@ function renderTray() {
 
   D.tray = h('div', { c: 'tray' }, [s01, s02, s03, s04, s05, s06, s07, s08, s09, s10, foot]);
   D.trayHost.appendChild(D.tray);
+  D.tray.scrollTop = scrolled;   /* a rebuild must not throw the reader back to the top */
   restoreFocus(focus);
   playFlip();
 }
