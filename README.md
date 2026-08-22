@@ -30,9 +30,35 @@ Or just open `index.html` off your disk. Nothing leaves the browser either way.
 
 ## CONFIGURATION
 
-Everything lives behind `設定 CONFIG` in the bottom right — panels, links, colours, greeting, weather city, image rotation. It all persists to localStorage. Section 10 dumps the whole config as JSON, so you can paste your setup into another browser instead of building it twice.
+Everything lives behind `設定 CONFIG` in the bottom right. It all persists to localStorage, so it survives reloads and stays on the machine.
 
-Panels and links reorder by dragging.
+**01 COLOUR · 色** — three accent presets and three ground presets. Each preset carries a light and a dark value, so picking one changes both modes. Under each row is a hex field: type six digits and it takes over from the presets. The hex only sets the mode you are currently looking at, since a colour that reads on sand rarely reads on near-black. The note under the fields tells you which mode you are editing.
+
+**02 DISPLAY · 表示** — `AUTO SUN` follows real sunrise and sunset for wherever the weather is pointed, or force `LIGHT` / `DARK`. `GRID` toggles the graph-paper texture. `24H` / `12H` sets the clock. `TEXT FITS BOX` shrinks type until it fits the box height; `BOX GROWS TO TEXT` does the reverse. `PANELS MID` / `PANELS TOP` moves the vertical labels and link lists; the clock always stays centred. `TEXT` scales type from 60% to 160%. `HEIGHT` sets box height from 200 to 760px — it shows `CAPPED` when the window is too short to honour it, and your setting is kept for when there is room again. `FAVICONS` shows a site icon beside each link; it is off by default because turning it on asks Google for an icon per domain, which hands over your bookmark list.
+
+**03 GREETING · 挨拶** — `ONE GREETING` for a fixed line, or `BY TIME OF DAY` for four that swap on the hours you set. The number is the hour that band starts. The active band is highlighted. Type size is fixed against the longest of them, so nothing resizes when a band changes.
+
+**04 WEATHER · 天気** — `MANUAL` looks up whatever city you type. `APPROX` places you by IP address, which asks no permission. `PRECISE` uses the browser's location, which will prompt. The `°C` / `°F` button converts. Data comes from Open-Meteo, refreshed every 30 minutes and cached between.
+
+**05 QUOTE · 引用** — see the QUOTES section below.
+
+**06 PANELS · パネル** — the dropdown picks which panel you are editing; `＋` adds one and `×` deletes it. Below that, the panel's name and its hotkey letter. The list underneath is that panel's links — drag the ⣿ handle to reorder, `×` on a row to remove it. The bottom row adds a link: label, hotkey, URL. The hotkey is highlighted inside the label as `/g/mail`, and leaving it blank uses the first letter. Panels themselves reorder by dragging them in the main rail.
+
+**07 IMAGE · 画像** — `ADD IMAGE` opens a picker, or drop files straight onto the box. `‹` `›` step through, `×` removes the current one. Thumbnails jump to any image. `CROP` zooms from 100% to 400%, `FIT` resets it, and dragging inside the box repositions. `ROTATE` changes the image on every OPEN, hourly, daily, weekly, or never. Images are stored as data URLs in localStorage, so a handful of large ones will fill it.
+
+**08 SEARCH · 検索** — the dropdown sets the default engine, and `SEARCH ON` / `OFF` controls whether `/` does anything. The field below adds your own engine: paste a search URL with `%s` where the query goes, like `https://example.com/search?q=%s`, and it appears in the list on prefix `c`.
+
+**09 TAB · タブ** — the browser tab title.
+
+**10 CONFIG · 設定** — `EXPORT` dumps the whole setup as JSON and copies it to the clipboard. `IMPORT` reads it back from the box. That is how you move a setup between browsers. `RESET DEFAULTS` at the bottom wipes everything after confirming.
+
+## THE TERMINAL LINE
+
+The `>` at the bottom is a single buffer, not a search box that opens and closes.
+
+Press a panel's letter to open it, then a link's letter to follow it. What you pressed stays on the line until the next key or `ESC`.
+
+Press `/` and it types a slash, after which everything you type is text. `ENTER` searches, `BACKSPACE` deletes, `ESC` clears. A single letter right after the slash picks an engine for that one search — `/w pixel art` goes to Wikipedia regardless of your default.
 
 ## QUOTES
 

@@ -21,6 +21,7 @@ input,select,button,textarea{font-family:'IBM Plex Mono',ui-monospace,monospace}
   --bg:#12100d;--panel:rgba(214,201,173,.032);--panelHi:rgba(214,201,173,.075);
   --line:rgba(190,178,152,.17);--fg:#9c9585;--dim:rgba(156,149,133,.46);
   --accent:#d4cdb8;--accent2:#c1503c;
+  --boxHc:min(var(--boxH,320px),calc(100vh - 300px));
   position:relative;min-height:100vh;background:var(--bg);color:var(--fg);
   font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px;overflow:hidden
 }
@@ -35,7 +36,7 @@ input,select,button,textarea{font-family:'IBM Plex Mono',ui-monospace,monospace}
 
 /* ---- quote ---- */
 .quote{position:fixed;top:34px;left:40px;max-width:min(calc(50vw - 60px),760px);
-  max-height:calc(50vh - var(--boxH,320px) / 2 - 58px);overflow:hidden;
+  max-height:calc(50vh - var(--boxHc,320px) / 2 - 58px);overflow:hidden;
   display:flex;flex-direction:column;gap:9px;cursor:pointer;z-index:20}
 .quote-t{font-family:'DotGothic16',monospace;font-size:12px;line-height:1.85;color:var(--dim);text-wrap:pretty;
   display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:var(--quoteLines,8);overflow:hidden}
@@ -65,7 +66,7 @@ input,select,button,textarea{font-family:'IBM Plex Mono',ui-monospace,monospace}
 .rail{height:100vh;display:flex;align-items:center;gap:16px;overflow-x:auto;overflow-y:hidden;
   scrollbar-width:none;padding-left:max(40px,calc(50vw - 419px));padding-right:140px;box-sizing:border-box}
 .rail::-webkit-scrollbar{display:none}
-.box{height:var(--boxH,320px);border:1px solid var(--line);background:var(--panel);box-sizing:border-box;flex:none}
+.box{height:var(--boxHc,320px);border:1px solid var(--line);background:var(--panel);box-sizing:border-box;flex:none}
 .vt{writing-mode:vertical-rl;text-orientation:upright;white-space:nowrap}
 
 /* ---- clock ---- */
@@ -99,7 +100,7 @@ input,select,button,textarea{font-family:'IBM Plex Mono',ui-monospace,monospace}
 .tab-t{text-transform:uppercase;font-family:'DotGothic16',monospace;font-size:var(--fs-cat,14px);letter-spacing:var(--ls-cat,2px);color:var(--fg)}
 .tab.on,.tab.on:hover{border-color:var(--accent);background:var(--accent)}
 .tab.on .tab-t{color:var(--bg)}
-.pane{width:244px;height:var(--boxH,320px);flex:none;border:1px solid var(--accent);border-left:none;background:var(--panel);
+.pane{width:244px;height:var(--boxHc,320px);flex:none;border:1px solid var(--accent);border-left:none;background:var(--panel);
   padding:17px 18px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:var(--tAlign,center);gap:var(--gap-link,12px);overflow:hidden}
 .lnk{display:flex;align-items:center;gap:9px;font-family:'DotGothic16',monospace;font-size:var(--fs-link,14px);
   letter-spacing:1px;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -182,6 +183,14 @@ input,select,button,textarea{font-family:'IBM Plex Mono',ui-monospace,monospace}
 /* the bottom strip shares space with the weather block and the config button */
 @media (max-width:900px){
   .cmd{left:40px;right:auto;width:auto;padding:0;bottom:118px;justify-content:flex-start}
+}
+/* Boxes stop shrinking at 180px, so below roughly 460px of height the bottom
+   cluster runs out of room. The weather block is the tallest thing down there
+   and the most expendable; config stays, or settings become unreachable.
+   Must come after the width query so it wins on .cmd bottom. */
+@media (max-height:520px){
+  .wx{display:none}
+  .cmd{bottom:36px}
 }
 </style>
 </head>
@@ -282,7 +291,7 @@ function defaults() {
     greetMode: 'static', themeMode: 'auto',
     greets: { morning: 'おはよう', afternoon: 'こんにちは', evening: 'こんばんは', night: 'おやすみ' },
     bands: { morning: 5, afternoon: 11, evening: 17, night: 22 },
-    tabTitle: '新規タブ · START', favGlyph: '端',
+    tabTitle: '新規タブ · START',
     cfgText: '', cfgMsg: '', dragCid: null, dragLid: null,
     theme: { a: 0, b: 0, grid: true,
              ac: { d: '#d4cdb8', l: '#33302a' }, gc: { d: '#12100d', l: '#c9c6b5' } },
@@ -381,7 +390,7 @@ function persist() {
       align: S.align, imgIdx: S.imgIdx, imgSched: S.imgSched, quoteSched: S.quoteSched,
       engine: S.engine, engineCustom: S.engineCustom, searchEnabled: S.searchEnabled, linkIcons: S.linkIcons,
       greetMode: S.greetMode, greets: S.greets, bands: S.bands, themeMode: S.themeMode,
-      tabTitle: S.tabTitle, favGlyph: S.favGlyph
+      tabTitle: S.tabTitle
     }));
   } catch (e) {}
 }
@@ -393,7 +402,7 @@ function exportable() {
     theme: S.theme, themeMode: S.themeMode, align: S.align,
     textScale: S.textScale, fitMode: S.fitMode, boxH: S.boxH,
     engine: S.engine, engineCustom: S.engineCustom, searchEnabled: S.searchEnabled, linkIcons: S.linkIcons,
-    tabTitle: S.tabTitle, favGlyph: S.favGlyph, imgSched: S.imgSched,
+    tabTitle: S.tabTitle, imgSched: S.imgSched,
     quoteSched: S.quoteSched, cats: S.cats
   };
 }
@@ -443,10 +452,7 @@ function setFavicon(fg, bg) {
     var c = document.createElement('canvas'); c.width = 64; c.height = 64;
     var x = c.getContext('2d');
     x.fillStyle = bg; x.fillRect(0, 0, 64, 64);
-    x.fillStyle = fg; x.fillRect(2, 2, 60, 3); x.fillRect(2, 59, 60, 3);
-    x.font = '700 40px DotGothic16, monospace';
-    x.textAlign = 'center'; x.textBaseline = 'middle';
-    x.fillText((S.favGlyph || '端').slice(0, 2), 32, 34);
+    x.fillStyle = fg; x.fillRect(16, 16, 32, 32);
     var l = document.querySelector('link[rel="icon"]');
     if (!l) { l = document.createElement('link'); l.rel = 'icon'; document.head.appendChild(l); }
     l.href = c.toDataURL('image/png');
@@ -1660,10 +1666,8 @@ function renderTray() {
     head('09 TAB · タブ'),
     h('div', { c: 'row' }, [
       field('tabtitle', S.tabTitle, function (e) { set({ tabTitle: e.target.value }, true); }),
-      field('favglyph', S.favGlyph, function (e) { set({ favGlyph: e.target.value.slice(0, 2) }, true); },
-        { max: '2', s: 'width:56px;flex:none;color:var(--accent);text-align:center;padding:9px 4px' })
     ]),
-    note('TITLE · FAVICON GLYPH (1–2 CHARACTERS)')
+    note('BROWSER TAB TITLE')
   ]);
 
   /* 10 CONFIG */
