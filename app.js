@@ -205,7 +205,7 @@ function exportable() {
     theme: S.theme, themeMode: S.themeMode, align: S.align,
     textScale: S.textScale, fitMode: S.fitMode, boxH: S.boxH,
     engine: S.engine, engineCustom: S.engineCustom, searchEnabled: S.searchEnabled, linkIcons: S.linkIcons,
-    tabTitle: S.tabTitle, imgSched: S.imgSched, gistId: S.gistId,
+    tabTitle: S.tabTitle, imgSched: S.imgSched,
     quoteSched: S.quoteSched, cats: S.cats
   };
 }

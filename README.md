@@ -6,8 +6,6 @@ Everything runs off the keyboard. Press a category key to open its panel, press 
 
 Last Update: 22/08/26
 
-![startpage](images/preview.gif)
-
 [LIVE PREVIEW](https://mritchot.github.io/jp-startpage/)
 
 ## INSTALLATION INSTRUCTIONS
@@ -98,7 +96,7 @@ On the second browser, paste the same token and the same gist ID, then PULL.
 
 PUSH overwrites the gist, PULL overwrites what is local. The line above the buttons shows when this browser last synced.
 
-**The token never leaves the browser you typed it into**: it is excluded from the synced payload and from the `10 CONFIG` export, so sharing a config cannot leak it. And **dropped images do not sync**, since they are data URLs living in a separate localStorage key.
+**The token never leaves the browser you typed it into**: it is excluded from the synced payload and from the `10 CONFIG` export, so sharing a config cannot leak it. The gist ID is left out of exports for the same reason — a GitHub secret gist is unlisted rather than private, so anyone holding the URL can read it. Treat the ID as semi-private and type it into each browser by hand. And **dropped images do not sync**, since they are data URLs living in a separate localStorage key.
 
 The token is stored in plain localStorage, which anyone with access to that browser profile can read.
 
