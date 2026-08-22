@@ -10,24 +10,35 @@ Last Update: 22/08/26
 
 ## INSTALLATION INSTRUCTIONS
 
-To use as a new Home page...
+### As a real new tab (best)
+
+This folder is also a browser extension. `manifest.json` is already set up, so there is nothing to build.
+
+- **Chrome** — go to `chrome://extensions`, turn on Developer mode, choose *Load unpacked*, and select this folder.
+- **Firefox** — go to `about:debugging`, *This Firefox*, *Load Temporary Add-on*, and pick `manifest.json`. Firefox drops temporary add-ons on restart; a signed build survives.
+
+You get a genuine new tab: no redirect flash, no URL sitting in the address bar, and it works with no network at all.
+
+### As a home page
 
 1. Fork this repo.
 2. Enable GitHub Pages for your fork at `Settings > Pages > Source [Deploy from a branch] > Branch [main / root] > Save`
-3. Set it as your Home page:
+3. Point your browser at it:
    - **Firefox** — menu button, Settings, Home panel, then set *Homepage and new windows* to Custom URLs and paste your GitHub Pages link.
    - **Chrome** — Settings, On startup, *Open a specific page*, and paste the same link.
 
-To use as a new Tab...
+### As a new tab, without packaging anything
 
-You can use different Add-ons/Extensions for it
+If you would rather not load an extension yourself, a redirector pointed at your Pages URL also works. Expect a brief flash of the default new tab and the URL showing in the address bar.
 
 - Firefox: [New Tab Override](https://addons.mozilla.org/en-US/firefox/addon/new-tab-override/)
 - Chromium: [Custom New Tab URL](https://chromewebstore.google.com/detail/custom-new-tab-url/mmjbdbjnoablegbkcklggeknkfcjkjia)
 
-Or load it as an extension for a real new tab: `chrome://extensions` or `about:debugging`, enable developer mode, and load this folder unpacked. `manifest.json` is already set up for it.
+Or just open `index.html` off your disk. Nothing leaves the browser in any of these.
 
-Or just open `index.html` off your disk. Nothing leaves the browser either way.
+### What is in here
+
+`index.html` is the markup and all the styling. `app.js` is everything else — there is no framework and no build step, it is one plain script. `fonts/` and `icons/` are served from the repo. `manifest.json` exists only for the extension and is ignored when the page is served over HTTP.
 
 ## CONFIGURATION
 
@@ -102,7 +113,8 @@ The token is stored in plain localStorage, which anyone with access to that brow
 
 ## DETAILS
 
-- Fonts are [DotGothic16](https://fonts.google.com/specimen/DotGothic16) and [IBM Plex Mono](https://fonts.google.com/specimen/IBM+Plex+Mono) from Google Fonts. They are the only remote asset.
+- Fonts are [DotGothic16](https://fonts.google.com/specimen/DotGothic16) and [IBM Plex Mono](https://fonts.google.com/specimen/IBM+Plex+Mono), served from `fonts/` rather than a CDN — about 36 KB for all three faces. Loading the page makes no third-party request at all. DotGothic16 is subset to the 348 glyphs this interface renders; type a kanji outside that set and it still shows, just in a system face rather than dot-matrix. See `fonts/README.md`.
+- The only network calls are ones you turn on: weather, pulling quotes from a URL, gist sync, and link favicons. All of them are optional and all of them fail quietly.
 - Weather comes from [Open-Meteo](https://open-meteo.com/), which needs no API key. Sunrise and sunset off the same response drive the automatic light/dark switch.
 - Link favicons are off by default. Switching them on asks Google for an icon per domain, which hands Google your bookmark list.
 - Drop images or GIFs straight onto the image box. They are stored as data URLs in localStorage, so a handful of big ones will fill it.
@@ -110,9 +122,9 @@ The token is stored in plain localStorage, which anyone with access to that brow
 
 ### NOTES
 
-The design came first this time and the code came second, which is the reverse of how I built the last one. It made the layout decisions far less painful.
+The design came first and the code came second, which made the layout decisions far less painful.
 
-Still on the list: the rail assumes a wide window and clips somewhere below 1000px, and there is no touch handling at all.
+Known limits. There is no touch handling, so this is a desktop page. The command line is a raw keystroke buffer with no input element, which means no IME — you cannot compose Japanese into the search line, though you can paste it. Dropped images live in localStorage and do not sync. Below about 560px of window height the weather block hides itself so the boxes have somewhere to go.
 
 ## LICENSE
 
