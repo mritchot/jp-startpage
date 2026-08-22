@@ -55,7 +55,6 @@ input,select,button,textarea{font-family:'IBM Plex Mono',ui-monospace,monospace}
 .cmd-cur{width:8px;height:14px;background:var(--accent);display:block;animation:blink 1.06s steps(1) infinite}
 .cmd-in{width:240px;background:transparent;border:none;outline:none;font-family:'DotGothic16',monospace;font-size:15px;letter-spacing:2px;color:var(--fg);caret-color:var(--accent)}
 .cmd-eng{width:74px;flex:none;font-size:9px;letter-spacing:2.4px;color:var(--accent);white-space:nowrap}
-.cmd-hint{width:292px;flex:none;font-size:9px;letter-spacing:2.4px;color:var(--dim);margin-left:6px;white-space:nowrap}
 .cmd-slot{width:var(--cmdSlot,326px);flex:none;display:flex;align-items:center;gap:12px}
 .off{display:none!important}
 
@@ -178,8 +177,9 @@ input,select,button,textarea{font-family:'IBM Plex Mono',ui-monospace,monospace}
 [role="button"]:focus-visible,.cmd-in:focus-visible{outline:1px solid var(--accent);outline-offset:2px}
 
 /* the bottom strip shares space with the weather block and the config button */
-@media (max-width:1200px){.cmd-hint{display:none}}
-@media (max-width:900px){.cmd{padding:0 24px;bottom:132px}}
+@media (max-width:900px){
+  .cmd{left:40px;right:auto;width:auto;padding:0;bottom:118px;justify-content:flex-start}
+}
 </style>
 </head>
 <body>
@@ -775,6 +775,34 @@ function reorder(list, from, to) {
   return out;
 }
 
+/* dragover fires continuously, even with the pointer still, and
+   getBoundingClientRect() reports mid-flight positions while the FLIP
+   transition runs. Both feed bad indices straight back into the reorder,
+   which is what makes two panels trade places over and over. Three guards:
+   wait out the animation, require real pointer movement, and pick the slot
+   by midpoint crossing so reversing needs a deliberate move back. */
+var _dragLock = 0, _dragLastPos = null;
+var FLIP_MS = 190;
+
+function dragSettled(pos) {
+  if (performance.now() - _dragLock < FLIP_MS + 20) return false;
+  if (_dragLastPos != null && Math.abs(pos - _dragLastPos) < 4) return false;
+  return true;
+}
+
+function dragTarget(container, pos, horizontal, dragNode) {
+  var others = Array.prototype.slice.call(container.children).filter(function (k) { return k !== dragNode; });
+  for (var i = 0; i < others.length; i++) {
+    var r = others[i].getBoundingClientRect();
+    var mid = horizontal ? r.left + r.width / 2 : r.top + r.height / 2;
+    if (pos < mid) return i;
+  }
+  return others.length;
+}
+
+function dragBegin(pos) { _dragLock = 0; _dragLastPos = pos; }
+function dragTook(pos) { _dragLock = performance.now(); _dragLastPos = pos; }
+
 var _flip = null;
 function snapFlip(container, attr) {
   if (!container) return;
@@ -797,7 +825,7 @@ function playFlip() {
     el.style.transition = 'none';
     el.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
     requestAnimationFrame(function () {
-      el.style.transition = 'transform 190ms cubic-bezier(.2,.75,.3,1)';
+      el.style.transition = 'transform ' + FLIP_MS + 'ms cubic-bezier(.2,.75,.3,1)';
       el.style.transform = 'translate(0,0)';
     });
   });
@@ -863,9 +891,8 @@ function buildShell() {
     blur: function () { setState({ cmdOpen: false }); }
   } });
   D.cmdEng  = h('span', { c: 'cmd-eng' });
-  D.cmdHint = h('span', { c: 'cmd-hint' });
   D.cmdSlot = h('div', { c: 'cmd-slot' }, [D.cmdEcho, D.cmdCur, D.cmdIn, D.cmdEng]);
-  D.cmd = h('div', { c: 'cmd' }, [D.cmdP, D.cmdSlot, D.cmdHint]);
+  D.cmd = h('div', { c: 'cmd' }, [D.cmdP, D.cmdSlot]);
 
   D.cDate = h('div', { c: 'vt c-date' });
   D.cWk   = h('div', { c: 'vt c-wk' });
@@ -963,10 +990,6 @@ function paint() {
   D.cmdP.textContent = S.cmdOpen ? '/' : '>';
   D.cmdEcho.textContent = S.echo;
   D.cmdEng.textContent = parseQuery(S.query).eng.name;
-  D.cmdHint.textContent = S.cmdOpen
-    ? 'ENTER TO SEARCH · ESC CANCELS'
-    : (S.openId ? 'ESC TO CLOSE'
-                : 'PRESS A HIGHLIGHTED KEY' + (S.searchEnabled ? ' · / TO SEARCH' : ''));
   D.cmdEcho.classList.toggle('off', S.cmdOpen);
   D.cmdCur.classList.toggle('off', S.cmdOpen);
   D.cmdIn.classList.toggle('off', !S.cmdOpen);
@@ -1042,6 +1065,7 @@ function buildCat(c) {
     on: {
       dragstart: function (e) {
         _dragC = catIndex(node);
+        dragBegin(e.clientX);
         e.dataTransfer.effectAllowed = 'move';
         try { e.dataTransfer.setData('text/plain', c.id); } catch (err) {}
         setState({ dragCid: c.id });
@@ -1054,14 +1078,16 @@ function buildCat(c) {
 
   function over(e) {
     e.preventDefault();
-    var ci = catIndex(node);
-    if (_dragC == null || ci < 0 || _dragC === ci) return;
+    if (_dragC == null || !dragSettled(e.clientX)) return;
+    var from = catIndex(node);
+    var to = dragTarget(D.panels, e.clientX, true, node);
+    if (from < 0 || to === from) return;
+    dragTook(e.clientX);
     snapFlip(D.panels, 'data-cid');
-    var from = _dragC;
-    _dragC = ci;
-    set({ cats: reorder(S.cats, from, ci) });
+    _dragC = to;
+    set({ cats: reorder(S.cats, from, to) });
   }
-  function end(e) { e.preventDefault(); _dragC = null; setState({ dragCid: null }); }
+  function end(e) { e.preventDefault(); _dragC = null; _dragLastPos = null; setState({ dragCid: null }); }
 }
 var _dragC = null, _dragL = null;
 
@@ -1187,6 +1213,7 @@ function buildLinkRow(l) {
     on: {
       dragstart: function (e) {
         _dragL = linkIndex(node);
+        dragBegin(e.clientY);
         e.dataTransfer.effectAllowed = 'move';
         try { e.dataTransfer.setData('text/plain', lid); } catch (err) {}
         setState({ dragLid: lid });
@@ -1208,14 +1235,16 @@ function buildLinkRow(l) {
 
   function over(e) {
     e.preventDefault();
-    var i = linkIndex(node);
-    if (_dragL == null || i < 0 || _dragL === i) return;
+    if (_dragL == null || !dragSettled(e.clientY)) return;
+    var from = linkIndex(node);
+    var to = dragTarget(D.linksBox, e.clientY, false, node);
+    if (from < 0 || to === from) return;
+    dragTook(e.clientY);
     snapFlip(D.linksBox, 'data-lid');
-    var from = _dragL;
-    _dragL = i;
-    updateCat({ links: reorder(editCat().links || [], from, i) });
+    _dragL = to;
+    updateCat({ links: reorder(editCat().links || [], from, to) });
   }
-  function end(e) { e.preventDefault(); _dragL = null; setState({ dragLid: null }); }
+  function end(e) { e.preventDefault(); _dragL = null; _dragLastPos = null; setState({ dragLid: null }); }
 }
 
 function renderTray() {
