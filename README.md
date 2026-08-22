@@ -14,8 +14,15 @@ Last Update: 22/08/26
 
 This folder is also a browser extension. `manifest.json` is already set up, so there is nothing to build.
 
-- **Chrome** — go to `chrome://extensions`, turn on Developer mode, choose *Load unpacked*, and select this folder.
-- **Firefox** — go to `about:debugging`, *This Firefox*, *Load Temporary Add-on*, and pick `manifest.json`. Firefox drops temporary add-ons on restart.
+**Firefox** — grab the signed `.xpi` from the [latest release](https://github.com/mritchot/jp-startpage/releases/latest). Opening that link in Firefox installs it straight away; if you have saved the file instead, drag it onto a Firefox window, or use `about:addons` → gear icon → *Install Add-on From File*.
+
+Needs Firefox 142 or later. It is self-distributed rather than listed on addons.mozilla.org, so it will not update itself — new versions install over the top.
+
+**Chrome** — go to `chrome://extensions`, turn on Developer mode, choose *Load unpacked*, and select this folder.
+
+To run an unsigned copy in Firefox instead — while changing the code, say — use `about:debugging` → *This Firefox* → *Load Temporary Add-on* and pick `manifest.json`. Firefox drops temporary add-ons on restart, and having both loaded at once means two new-tab overrides fighting, so remove one first.
+
+The extension keeps its own storage, separate from the hosted page. It starts from defaults; use `11 SYNC` to bring an existing setup across.
 
 ### As a home page
 
