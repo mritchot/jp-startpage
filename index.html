@@ -34,8 +34,11 @@ input,select,button,textarea{font-family:'IBM Plex Mono',ui-monospace,monospace}
     repeating-linear-gradient(to bottom,var(--grid,rgba(0,0,0,.03)) 0 1px,transparent 1px var(--gridGap,4.5px))}
 
 /* ---- quote ---- */
-.quote{position:fixed;top:34px;left:40px;max-width:290px;display:flex;flex-direction:column;gap:9px;cursor:pointer;z-index:20}
-.quote-t{font-family:'DotGothic16',monospace;font-size:12px;line-height:1.85;color:var(--dim);text-wrap:pretty}
+.quote{position:fixed;top:34px;left:40px;max-width:min(calc(50vw - 60px),760px);
+  max-height:calc(50vh - var(--boxH,320px) / 2 - 58px);overflow:hidden;
+  display:flex;flex-direction:column;gap:9px;cursor:pointer;z-index:20}
+.quote-t{font-family:'DotGothic16',monospace;font-size:12px;line-height:1.85;color:var(--dim);text-wrap:pretty;
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:var(--quoteLines,8);overflow:hidden}
 .quote-a{font-size:9px;letter-spacing:2.2px;color:var(--dim);opacity:.7}
 
 /* ---- weather ---- */
@@ -225,12 +228,20 @@ var QSOURCES = [
   { id: 'url',     label: 'URL'      }
 ];
 
-var ENGINES = [
-  { id: 'k', name: 'KAGI',      url: 'https://kagi.com/search?q=' },
-  { id: 'g', name: 'GOOGLE',    url: 'https://www.google.com/search?q=' },
-  { id: 'w', name: 'WIKIPEDIA', url: 'https://en.wikipedia.org/w/index.php?search=' },
-  { id: 'y', name: 'YOUTUBE',   url: 'https://www.youtube.com/results?search_query=' }
+/* %s stands in for the query, so any engine can be added without a code change */
+var BASE_ENGINES = [
+  { id: 'k', name: 'KAGI',      url: 'https://kagi.com/search?q=%s' },
+  { id: 'g', name: 'GOOGLE',    url: 'https://www.google.com/search?q=%s' },
+  { id: 'w', name: 'WIKIPEDIA', url: 'https://en.wikipedia.org/w/index.php?search=%s' },
+  { id: 'y', name: 'YOUTUBE',   url: 'https://www.youtube.com/results?search_query=%s' }
 ];
+function engineList() {
+  var l = BASE_ENGINES.slice();
+  var t = (S.engineCustom || '').trim();
+  if (t.indexOf('%s') >= 0) l.push({ id: 'c', name: 'CUSTOM', url: t });
+  return l;
+}
+function searchUrl(eng, term) { return eng.url.replace('%s', encodeURIComponent(term)); }
 
 var SCHED = [
   { id: 'open', label: 'OPEN' }, { id: 'hour', label: 'HOUR' },
@@ -262,12 +273,12 @@ function defaults() {
   return {
     now: Date.now(), openId: null, trayOpen: false, line: '', quoteIdx: 0,
     greeting: 'ターミナル接続確立：ハロー',
-    city: 'TOKYO', unit: 'C', clock24: true,
+    city: 'TOKYO', geoMode: 'manual', unit: 'C', clock24: true,
     gistUrl: '', quoteSource: 'builtin', quoteCustom: '',
     editCatId: 'workspace', nl: '', nk: '', nu: '',
     textScale: 1, fitMode: 'fit', boxH: 320,
     align: 'center', imgs: [], imgIdx: 0, imgSched: 'day', quoteSched: 'day',
-    engine: 'k', searchEnabled: true, linkIcons: false,
+    engine: 'k', engineCustom: '', searchEnabled: true, linkIcons: false,
     greetMode: 'static', themeMode: 'auto',
     greets: { morning: 'おはよう', afternoon: 'こんにちは', evening: 'こんばんは', night: 'おやすみ' },
     bands: { morning: 5, afternoon: 11, evening: 17, night: 22 },
@@ -363,12 +374,12 @@ var D = {};
 function persist() {
   try {
     localStorage.setItem(LS_KEY, JSON.stringify({
-      greeting: S.greeting, city: S.city, unit: S.unit, clock24: S.clock24,
+      greeting: S.greeting, city: S.city, geoMode: S.geoMode, unit: S.unit, clock24: S.clock24,
       gistUrl: S.gistUrl, quoteSource: S.quoteSource, quoteCustom: S.quoteCustom,
       theme: S.theme, cats: S.cats, quoteIdx: S.quoteIdx,
       textScale: S.textScale, fitMode: S.fitMode, boxH: S.boxH,
       align: S.align, imgIdx: S.imgIdx, imgSched: S.imgSched, quoteSched: S.quoteSched,
-      engine: S.engine, searchEnabled: S.searchEnabled, linkIcons: S.linkIcons,
+      engine: S.engine, engineCustom: S.engineCustom, searchEnabled: S.searchEnabled, linkIcons: S.linkIcons,
       greetMode: S.greetMode, greets: S.greets, bands: S.bands, themeMode: S.themeMode,
       tabTitle: S.tabTitle, favGlyph: S.favGlyph
     }));
@@ -377,11 +388,11 @@ function persist() {
 function exportable() {
   return {
     greeting: S.greeting, greetMode: S.greetMode, greets: S.greets, bands: S.bands,
-    city: S.city, unit: S.unit, clock24: S.clock24,
+    city: S.city, geoMode: S.geoMode, unit: S.unit, clock24: S.clock24,
     gistUrl: S.gistUrl, quoteSource: S.quoteSource, quoteCustom: S.quoteCustom,
     theme: S.theme, themeMode: S.themeMode, align: S.align,
     textScale: S.textScale, fitMode: S.fitMode, boxH: S.boxH,
-    engine: S.engine, searchEnabled: S.searchEnabled, linkIcons: S.linkIcons,
+    engine: S.engine, engineCustom: S.engineCustom, searchEnabled: S.searchEnabled, linkIcons: S.linkIcons,
     tabTitle: S.tabTitle, favGlyph: S.favGlyph, imgSched: S.imgSched,
     quoteSched: S.quoteSched, cats: S.cats
   };
@@ -468,12 +479,22 @@ function computeSizing() {
     var p = 34 + ln * (B.link * sc * 1.5) + Math.max(0, ln - 1) * (12 * sc);
     return Math.max(g, c, strip, p);
   };
-  var sc = S.textScale, H = Math.max(180, S.boxH);
-  if (S.fitMode === 'fit') {
+  /* Never let a box grow past what the window can show. 150px is reserved top
+     and bottom for the quote and the weather/terminal cluster. S.boxH keeps the
+     user's preference untouched; only the applied height is clamped, so a tall
+     setting still applies in full on a taller display. */
+  var maxH = Math.max(180, (window.innerHeight || 800) - 300);
+  var sc = S.textScale, H = Math.min(Math.max(180, S.boxH), maxH);
+  var capped = Math.max(180, S.boxH) > maxH;
+  if (S.fitMode !== 'fit') {
+    H = Math.max(H, Math.ceil(need(sc)));
+    if (H > maxH) { H = maxH; capped = true; }
+  }
+  if (S.fitMode === 'fit' || capped) {
     for (var i = 0; i < 10 && need(sc) > H; i++) sc = Math.max(0.3, sc * (H / need(sc)) * 0.995);
     if (need(sc) > H) sc = Math.max(0.3, sc * (H / need(sc)) * 0.98);
-  } else { H = Math.max(H, Math.ceil(need(sc))); }
-  return { sc: sc, H: Math.round(H), B: B };
+  }
+  return { sc: sc, H: Math.round(H), B: B, capped: capped };
 }
 
 function applySizing() {
@@ -494,6 +515,8 @@ function applySizing() {
   Sv('--tGap', px(14 * sc));
   Sv('--cmdSlot', S.searchEnabled ? '326px' : '140px');
   Sv('--cmdEng', S.searchEnabled ? '74px' : '0px');
+  var above = Math.floor(((window.innerHeight || 800) - z.H) / 2) - 34 - 24;
+  Sv('--quoteLines', String(Math.max(2, Math.floor(above / 22.2))));
   applyImage();
 }
 
@@ -672,36 +695,31 @@ function pullQuotes() {
 /* ------------------------------------------------------------------ *
  * weather — Open-Meteo, no key required; static values stand in on failure
  * ------------------------------------------------------------------ */
-var _wxCity = null;
+var _wxKey = null, WX_LABEL = '';
+var GEOMODES = [
+  { id: 'manual',  label: 'MANUAL'  },
+  { id: 'approx',  label: 'APPROX'  },
+  { id: 'precise', label: 'PRECISE' }
+];
+
+/* Open-Meteo returns an IANA zone, so the last segment gives a usable place
+   name without a second round trip to a reverse geocoder. */
+function tzLabel(tz) {
+  var seg = String(tz || '').split('/').pop() || '';
+  return seg.replace(/_/g, ' ').toUpperCase() || '';
+}
 
 function hourOf(iso) {
   var m = String(iso || '').match(/T(\d{2}):(\d{2})/);
   return m ? Number(m[1]) + Number(m[2]) / 60 : null;
 }
 
-function fetchWeather(force) {
-  var city = (S.city || '').trim();
-  if (!city || (!force && _wxCity === city)) return;
-  _wxCity = city;
-  try {
-    var c = JSON.parse(localStorage.getItem(WX_KEY) || 'null');
-    if (c && c.city === city && Date.now() - c.at < 1800000) {
-      WX = c.wx; SUN = c.sun; paint();
-      if (S.themeMode === 'auto') applyTheme();
-      return;
-    }
-  } catch (e) {}
-
-  fetch('https://geocoding-api.open-meteo.com/v1/search?count=1&language=en&format=json&name=' + encodeURIComponent(city))
+function forecastAt(lat, lon, label, key) {
+  return fetch('https://api.open-meteo.com/v1/forecast?forecast_days=1&timezone=auto' +
+    '&latitude=' + lat + '&longitude=' + lon +
+    '&current=temperature_2m,weather_code' +
+    '&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset')
     .then(function (r) { return r.json(); })
-    .then(function (g) {
-      var p = g && g.results && g.results[0];
-      if (!p) throw 0;
-      return fetch('https://api.open-meteo.com/v1/forecast?forecast_days=1&timezone=auto' +
-        '&latitude=' + p.latitude + '&longitude=' + p.longitude +
-        '&current=temperature_2m,weather_code' +
-        '&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset').then(function (r) { return r.json(); });
-    })
     .then(function (f) {
       if (!f || !f.current || !f.daily) throw 0;
       var code = WMO[f.current.weather_code] || ['—', '—'];
@@ -713,13 +731,68 @@ function fetchWeather(force) {
       };
       var rise = hourOf(f.daily.sunrise && f.daily.sunrise[0]);
       var setH = hourOf(f.daily.sunset && f.daily.sunset[0]);
-      var sun = { rise: rise == null ? SUN.rise : rise, set: setH == null ? SUN.set : setH };
-      WX = wx; SUN = sun;
-      try { localStorage.setItem(WX_KEY, JSON.stringify({ city: city, at: Date.now(), wx: wx, sun: sun })); } catch (e) {}
+      WX = wx;
+      SUN = { rise: rise == null ? SUN.rise : rise, set: setH == null ? SUN.set : setH };
+      WX_LABEL = label || tzLabel(f.timezone) || WX_LABEL;
+      try {
+        localStorage.setItem(WX_KEY, JSON.stringify({ key: key, at: Date.now(), wx: WX, sun: SUN, label: WX_LABEL }));
+      } catch (e) {}
+      paint();
+      if (S.trayOpen) renderTray();   /* the location readout is built from WX_LABEL */
+      if (S.themeMode === 'auto') applyTheme();
+    });
+}
+
+function fetchWeather(force) {
+  var mode = S.geoMode || 'manual';
+  var city = (S.city || '').trim();
+  var key = mode === 'manual' ? 'city:' + city.toUpperCase() : mode;
+  if (!force && _wxKey === key) return;
+  _wxKey = key;
+
+  try {
+    var c = JSON.parse(localStorage.getItem(WX_KEY) || 'null');
+    if (c && c.key === key && Date.now() - c.at < 1800000) {
+      WX = c.wx; SUN = c.sun; if (c.label) WX_LABEL = c.label;
       paint();
       if (S.themeMode === 'auto') applyTheme();
+      return;
+    }
+  } catch (e) {}
+
+  var quiet = function () { /* leave whatever is already on screen */ };
+
+  if (mode === 'approx') {
+    /* IP lookup: no permission prompt, city name comes back with the position */
+    fetch('https://ipapi.co/json/')
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j || j.latitude == null) throw 0;
+        return forecastAt(j.latitude, j.longitude, String(j.city || '').toUpperCase(), key);
+      })
+      .catch(quiet);
+    return;
+  }
+
+  if (mode === 'precise') {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      function (pos) { forecastAt(pos.coords.latitude, pos.coords.longitude, '', key).catch(quiet); },
+      quiet,
+      { timeout: 10000, maximumAge: 600000 }
+    );
+    return;
+  }
+
+  if (!city) return;
+  fetch('https://geocoding-api.open-meteo.com/v1/search?count=1&language=en&format=json&name=' + encodeURIComponent(city))
+    .then(function (r) { return r.json(); })
+    .then(function (g) {
+      var p = g && g.results && g.results[0];
+      if (!p) throw 0;
+      return forecastAt(p.latitude, p.longitude, city.toUpperCase(), key);
     })
-    .catch(function () { /* keep whatever is already showing */ });
+    .catch(quiet);
 }
 
 /* ------------------------------------------------------------------ *
@@ -728,10 +801,11 @@ function fetchWeather(force) {
 function parseQuery(q) {
   var m = String(q || '').match(/^([a-z])(?:\s+(.*))?$/i);
   if (m) {
-    var eng = ENGINES.filter(function (x) { return x.id === m[1].toLowerCase(); })[0];
+    var eng = engineList().filter(function (x) { return x.id === m[1].toLowerCase(); })[0];
     if (eng) return { eng: eng, term: m[2] || '' };
   }
-  var cur = ENGINES.filter(function (x) { return x.id === S.engine; })[0] || ENGINES[0];
+  var all = engineList();
+  var cur = all.filter(function (x) { return x.id === S.engine; })[0] || all[0];
   return { eng: cur, term: String(q || '') };
 }
 
@@ -742,7 +816,7 @@ function queryText() { return S.line.replace(/^\//, ''); }
 function submitLine() {
   var r = parseQuery(queryText());
   if (!r.term.trim()) return;
-  window.open(r.eng.url + encodeURIComponent(r.term.trim()), '_blank', 'noopener');
+  window.open(searchUrl(r.eng, r.term.trim()), '_blank', 'noopener');
   setState({ line: '' });
 }
 
@@ -1015,7 +1089,7 @@ function paint() {
   D.quoteA.style.display = q.author ? '' : 'none';
 
   var conv = function (v) { return S.unit === 'C' ? v : Math.round(v * 9 / 5 + 32); };
-  D.wxCity.textContent = S.city + ' · 天気';
+  D.wxCity.textContent = ((S.geoMode === 'manual' ? S.city : (WX_LABEL || S.city)) || '—') + ' · 天気';
   D.wxTemp.textContent = conv(WX.c) + '°';
   D.wxCond.textContent = WX.cond + ' ' + WX.kana;
   D.wxHilo.textContent = 'H ' + conv(WX.hi) + '° / L ' + conv(WX.lo) + '°';
@@ -1353,7 +1427,7 @@ function renderTray() {
     h('div', { c: 'row mid' }, [
       h('span', { c: 'lab', t: 'HEIGHT' }),
       stp('−', function () { set({ boxH: Math.max(200, S.boxH - 20) }); }, 0, 'Shorter boxes'),
-      h('span', { c: 'val', t: sizing.H + 'PX' + (S.fitMode === 'fit' ? '' : ' · AUTO') }),
+      h('span', { c: 'val', t: sizing.H + 'PX' + (sizing.capped ? ' · CAPPED' : (S.fitMode === 'fit' ? '' : ' · AUTO')) }),
       stp('＋', function () { set({ boxH: Math.min(760, S.boxH + 20) }); }, 0, 'Taller boxes')
     ]),
     h('div', { c: 'row' }, [
@@ -1408,17 +1482,32 @@ function renderTray() {
   ]);
 
   /* 04 WEATHER */
+  var unitBtn = btn('°' + S.unit, function () { set({ unit: S.unit === 'C' ? 'F' : 'C' }); },
+    { s: 'width:64px;flex:none;letter-spacing:1px' });
+  var geoNote = { manual: '', approx: 'POSITION FROM IP ADDRESS · NOTHING TO ALLOW',
+                  precise: 'THE BROWSER WILL ASK TO SHARE YOUR LOCATION' }[S.geoMode] || '';
   var s04 = sec(null, [
-    head('04 WEATHER'),
-    h('div', { c: 'row' }, [
-      field('city', S.city, function (e) {
-        set({ city: e.target.value.toUpperCase() });
-        clearTimeout(_wxDebounce);
-        _wxDebounce = setTimeout(function () { fetchWeather(); }, 700);
-      }),
-      btn('°' + S.unit, function () { set({ unit: S.unit === 'C' ? 'F' : 'C' }); },
-        { s: 'width:64px;flex:none;letter-spacing:1px' })
-    ])
+    head('04 WEATHER · 天気'),
+    h('div', { c: 'row' }, GEOMODES.map(function (o) {
+      return h('div', { c: 'opt' + (S.geoMode === o.id ? ' on' : ''), t: o.label, btn: 1, on: { click: function () {
+        set({ geoMode: o.id });
+        fetchWeather(true);
+      } } });
+    })),
+    S.geoMode === 'manual'
+      ? h('div', { c: 'row' }, [
+          field('city', S.city, function (e) {
+            set({ city: e.target.value.toUpperCase() });
+            clearTimeout(_wxDebounce);
+            _wxDebounce = setTimeout(function () { fetchWeather(); }, 700);
+          }),
+          unitBtn
+        ])
+      : h('div', { c: 'row' }, [
+          h('div', { c: 'in', s: 'color:var(--dim)', t: WX_LABEL || 'LOCATING…' }),
+          unitBtn
+        ]),
+    geoNote ? note(geoNote) : null
   ]);
 
   /* 05 QUOTE */
@@ -1552,7 +1641,7 @@ function renderTray() {
   /* 08 SEARCH */
   var engSel = h('select', { c: 'sel', a: { 'data-k': 'engsel' }, on: {
     change: function (e) { set({ engine: e.target.value }); }
-  } }, ENGINES.map(function (e) { return h('option', { t: e.name, a: { value: e.id } }); }));
+  } }, engineList().map(function (e) { return h('option', { t: e.name, a: { value: e.id } }); }));
   engSel.value = S.engine;
   var s08 = sec(null, [
     head('08 SEARCH · 検索'),
@@ -1560,7 +1649,10 @@ function renderTray() {
       engSel,
       btn(S.searchEnabled ? 'SEARCH ON' : 'SEARCH OFF', function () { set({ searchEnabled: !S.searchEnabled }); },
         { s: 'width:96px;flex:none' })
-    ])
+    ]),
+    field('engcustom', S.engineCustom, function (e) { set({ engineCustom: e.target.value }); },
+      { c: 'tiny', ph: 'https://example.com/search?q=%s' }),
+    note('CUSTOM ENGINE · %s IS THE QUERY · PREFIX c')
   ]);
 
   /* 09 TAB */
@@ -1659,6 +1751,16 @@ function boot() {
 
   window.addEventListener('keydown', handleKey);
   window.addEventListener('paste', handlePaste);
+
+  var resizeRaf = null;
+  window.addEventListener('resize', function () {
+    if (resizeRaf) return;
+    resizeRaf = requestAnimationFrame(function () {
+      resizeRaf = null;
+      applySizing();                    /* box height is computed in JS, not CSS */
+      if (S.trayOpen) renderTray();     /* so the HEIGHT readout stays honest */
+    });
+  });
 
   setInterval(function () {
     S.now = Date.now();
