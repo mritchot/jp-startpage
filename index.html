@@ -937,9 +937,19 @@ function buildShell() {
   } });
   document.body.appendChild(D.fileIn);
 
-  /* the page never scrolls vertically, so a wheel here means "move the rail" */
+  /* A mouse wheel only reports deltaY, so translate it onto the rail. A
+     trackpad reports both axes at once, and the browser already scrolls a
+     horizontal overflow container correctly from deltaX -- intercepting that
+     is what makes trackpad scrolling feel broken. Lock the axis once per
+     gesture and keep hands off anything horizontal. */
+  var wheelAxis = null, wheelAt = 0;
   D.rail.addEventListener('wheel', function (e) {
-    if (!e.deltaY || e.ctrlKey) return;
+    if (e.ctrlKey) return;                       /* pinch zoom */
+    var now = performance.now();
+    if (now - wheelAt > 200) wheelAxis = null;   /* a pause starts a new gesture */
+    wheelAt = now;
+    if (!wheelAxis) wheelAxis = Math.abs(e.deltaX) >= Math.abs(e.deltaY) ? 'x' : 'y';
+    if (wheelAxis === 'x') return;               /* let the browser do it */
     if (D.rail.scrollWidth <= D.rail.clientWidth) return;
     e.preventDefault();
     D.rail.scrollLeft += e.deltaY;
