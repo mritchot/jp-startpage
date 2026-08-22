@@ -102,7 +102,7 @@ The token is stored in plain localStorage, which anyone with access to that brow
 
 ## DETAILS
 
-- Fonts are [DotGothic16](https://fonts.google.com/specimen/DotGothic16) and [IBM Plex Mono](https://fonts.google.com/specimen/IBM+Plex+Mono), served from `fonts/` rather than a CDN — about 36 KB for all three faces. Loading the page makes no third-party request at all. DotGothic16 is subset to the 348 glyphs this interface renders; type a kanji outside that set and it still shows, just in a system face rather than dot-matrix. See `fonts/README.md`.
+- Fonts are [DotGothic16](https://fonts.google.com/specimen/DotGothic16) and [IBM Plex Mono](https://fonts.google.com/specimen/IBM+Plex+Mono), served from `fonts/` rather than a CDN, so loading the page makes no third-party request at all. DotGothic16 ships complete, split into unicode-range slices, so a browser only downloads the handful covering what is on screen — about seven of 123 on a default load. Any kanji you type renders in the dot-matrix face. See `fonts/README.md`.
 - The only network calls are ones you turn on: weather, pulling quotes from a URL, gist sync, and link favicons.
 - Weather comes from [Open-Meteo](https://open-meteo.com/), which needs no API key.
 - Link favicons are off by default. Switching them on asks Google for an icon per domain, which hands Google your bookmark list.
