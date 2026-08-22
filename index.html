@@ -51,10 +51,10 @@ input,select,button,textarea{font-family:'IBM Plex Mono',ui-monospace,monospace}
   pointer-events:none}
 .cmd>*{pointer-events:auto}
 .cmd-p{font-size:11px;color:var(--accent)}
-.cmd-line{font-family:'DotGothic16',monospace;font-size:14px;letter-spacing:2px;color:var(--accent);white-space:pre}
+.cmd-line{font-family:'DotGothic16',monospace;font-size:14px;line-height:20px;letter-spacing:2px;color:var(--accent);white-space:pre}
 .cmd-cur{width:8px;height:14px;flex:none;margin-left:2px;background:var(--accent);display:block;animation:blink 1.06s steps(1) infinite}
 .cmd-eng{width:var(--cmdEng,74px);flex:none;font-size:9px;letter-spacing:2.4px;color:var(--accent);white-space:nowrap;overflow:hidden}
-.cmd-slot{width:var(--cmdSlot,326px);flex:none;display:flex;align-items:center;overflow:hidden}
+.cmd-slot{width:var(--cmdSlot,326px);height:20px;flex:none;display:flex;align-items:center;overflow:hidden}
 .off{display:none!important}
 
 /* ---- rail ---- */
@@ -698,10 +698,10 @@ function fetchWeather(force) {
  * search
  * ------------------------------------------------------------------ */
 function parseQuery(q) {
-  var m = String(q || '').match(/^([a-z])\s+(.*)$/i);
+  var m = String(q || '').match(/^([a-z])(?:\s+(.*))?$/i);
   if (m) {
     var eng = ENGINES.filter(function (x) { return x.id === m[1].toLowerCase(); })[0];
-    if (eng) return { eng: eng, term: m[2] };
+    if (eng) return { eng: eng, term: m[2] || '' };
   }
   var cur = ENGINES.filter(function (x) { return x.id === S.engine; })[0] || ENGINES[0];
   return { eng: cur, term: String(q || '') };
@@ -713,7 +713,7 @@ function queryText() { return S.line.replace(/^\//, ''); }
 
 function submitLine() {
   var r = parseQuery(queryText());
-  if (!r.term.trim()) { setState({ line: '' }); return; }
+  if (!r.term.trim()) return;
   window.open(r.eng.url + encodeURIComponent(r.term.trim()), '_blank', 'noopener');
   setState({ line: '' });
 }
