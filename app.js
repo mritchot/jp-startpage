@@ -1641,8 +1641,7 @@ function renderTray() {
       btn('PUSH', syncPush, { f: 1 }),
       btn('PULL', syncPull, { f: 1 })
     ]),
-    note(_syncMsg || syncStamp()),
-    note('TOKEN STAYS IN THIS BROWSER · NEVER LEAVES IN AN EXPORT')
+    note(_syncMsg || syncStamp())
   ]);
 
   var foot = h('div', { c: 'foot' }, [
