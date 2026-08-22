@@ -1,12 +1,12 @@
 # JP-STARTPAGE
 
-Five years ago I ended the last startpage README by saying I would probably build another one. This is that one.
-
-I wanted the terminal look again, but leaning Japanese this time — vertical writing mode, DotGothic16, scanlines, and a single accent colour over near-black. It gave me an excuse to finally use `writing-mode: vertical-rl`, which I had never touched before, and to write a small solver that shrinks the type until every panel fits the same box height. The rule I set myself was one HTML file, no build step, no dependencies. It stayed that way.
+A browser startpage built around a Japanese terminal interface — vertical writing mode, DotGothic16, a fine graph-paper grid, and a single accent colour over near-black. It gave me an excuse to finally use `writing-mode: vertical-rl`, and to write a small solver that shrinks the type until every panel fits the same box height. The rule I set myself was one HTML file, no build step, no dependencies. It stayed that way.
 
 Everything runs off the keyboard. Press a category key to open its panel, press a link key to follow it, press `/` to search.
 
 Last Update: 22/08/26
+
+[LIVE PREVIEW](https://mritchot.github.io/jp-startpage/)
 
 ## INSTALLATION INSTRUCTIONS
 
@@ -14,10 +14,9 @@ To use as a new Home page...
 
 1. Fork this repo.
 2. Enable GitHub Pages for your fork at `Settings > Pages > Source [Deploy from a branch] > Branch [main / root] > Save`
-3. Set it as Home Page:
-   - Click the menu button and select Settings.
-   - Click the Home panel.
-   - Click the menu next to Homepage and new windows, choose Custom URLs, and add your `GitHub Pages link`
+3. Set it as your Home page:
+   - **Firefox** — menu button, Settings, Home panel, then set *Homepage and new windows* to Custom URLs and paste your GitHub Pages link.
+   - **Chrome** — Settings, On startup, *Open a specific page*, and paste the same link.
 
 To use as a new Tab...
 
