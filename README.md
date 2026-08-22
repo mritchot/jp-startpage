@@ -94,3 +94,7 @@ The line format is the same one [Bonjourr](https://bonjourr.fr/docs/widgets/quot
 The design came first this time and the code came second, which is the reverse of how I built the last one. It made the layout decisions far less painful.
 
 Still on the list: the rail assumes a wide window and clips somewhere below 1000px, and there is no touch handling at all.
+
+## LICENSE
+
+MIT. See [LICENSE](LICENSE).
