@@ -790,7 +790,7 @@ function queryText() { return S.line.replace(/^\//, ''); }
 function submitLine() {
   var r = parseQuery(queryText());
   if (!r.term.trim()) return;
-  window.open(searchUrl(r.eng, r.term.trim()), '_blank', 'noopener');
+  location.href = searchUrl(r.eng, r.term.trim());
   setState({ line: '' });
 }
 
@@ -831,7 +831,7 @@ function handleKey(e) {
     var link = open.links.filter(function (l) { return (l.key || '').toLowerCase() === k; })[0];
     if (link) {
       e.preventDefault();
-      window.open(link.url, '_blank', 'noopener');
+      location.href = link.url;
       setState({ openId: null, line: (open.key || '').toLowerCase() + ' ' + k + ' ▸' });
       return;
     }
@@ -1152,7 +1152,7 @@ function buildCat(c) {
     kids.push(h('div', { c: 'pane' }, c.links.map(function (l) {
       var lm = mark(l.label, l.key);
       var icon = faviconFor(l.url);
-      return h('a', { c: 'lnk', a: { href: l.url, target: '_blank', rel: 'noreferrer' } }, [
+      return h('a', { c: 'lnk', a: { href: l.url, rel: 'noreferrer' } }, [
         icon ? h('img', { a: { src: icon, alt: '' } }) : null,
         h('span', {}, [
           lm.pre, h('span', { c: 'sl', t: '/' }), h('span', { c: 'hk', t: lm.k }),
