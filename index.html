@@ -51,11 +51,12 @@ input,select,button,textarea{font-family:'IBM Plex Mono',ui-monospace,monospace}
   pointer-events:none}
 .cmd>*{pointer-events:auto}
 .cmd-p{font-size:11px;color:var(--accent)}
-.cmd-echo{font-family:'DotGothic16',monospace;font-size:14px;letter-spacing:7px;color:var(--accent);white-space:nowrap}
+.cmd-echo{position:absolute;left:20px;top:50%;transform:translateY(-50%);pointer-events:none;
+  font-family:'DotGothic16',monospace;font-size:14px;letter-spacing:7px;color:var(--accent);white-space:nowrap}
 .cmd-cur{width:8px;height:14px;background:var(--accent);display:block;animation:blink 1.06s steps(1) infinite}
 .cmd-in{width:240px;background:transparent;border:none;outline:none;font-family:'DotGothic16',monospace;font-size:15px;letter-spacing:2px;color:var(--fg);caret-color:var(--accent)}
 .cmd-eng{width:74px;flex:none;font-size:9px;letter-spacing:2.4px;color:var(--accent);white-space:nowrap}
-.cmd-slot{width:var(--cmdSlot,326px);flex:none;display:flex;align-items:center;gap:12px}
+.cmd-slot{width:var(--cmdSlot,326px);flex:none;display:flex;align-items:center;gap:12px;position:relative}
 .off{display:none!important}
 
 /* ---- rail ---- */
@@ -781,7 +782,7 @@ function reorder(list, from, to) {
    which is what makes two panels trade places over and over. Three guards:
    wait out the animation, require real pointer movement, and pick the slot
    by midpoint crossing so reversing needs a deliberate move back. */
-var _dragLock = 0, _dragLastPos = null;
+var _dragLock = 0, _dragLastPos = null, _dragNode = null;
 var FLIP_MS = 190;
 
 function dragSettled(pos) {
@@ -1065,6 +1066,7 @@ function buildCat(c) {
     on: {
       dragstart: function (e) {
         _dragC = catIndex(node);
+        _dragNode = node;
         dragBegin(e.clientX);
         e.dataTransfer.effectAllowed = 'move';
         try { e.dataTransfer.setData('text/plain', c.id); } catch (err) {}
@@ -1078,16 +1080,20 @@ function buildCat(c) {
 
   function over(e) {
     e.preventDefault();
-    if (_dragC == null || !dragSettled(e.clientX)) return;
-    var from = catIndex(node);
-    var to = dragTarget(D.panels, e.clientX, true, node);
+    if (!_dragNode || _dragC == null || !dragSettled(e.clientX)) return;
+    var from = catIndex(_dragNode);
+    var to = dragTarget(D.panels, e.clientX, true, _dragNode);
     if (from < 0 || to === from) return;
     dragTook(e.clientX);
     snapFlip(D.panels, 'data-cid');
     _dragC = to;
     set({ cats: reorder(S.cats, from, to) });
   }
-  function end(e) { e.preventDefault(); _dragC = null; _dragLastPos = null; setState({ dragCid: null }); }
+  function end(e) {
+    e.preventDefault();
+    _dragC = null; _dragNode = null; _dragLastPos = null;
+    setState({ dragCid: null });
+  }
 }
 var _dragC = null, _dragL = null;
 
@@ -1213,6 +1219,7 @@ function buildLinkRow(l) {
     on: {
       dragstart: function (e) {
         _dragL = linkIndex(node);
+        _dragNode = node;
         dragBegin(e.clientY);
         e.dataTransfer.effectAllowed = 'move';
         try { e.dataTransfer.setData('text/plain', lid); } catch (err) {}
@@ -1235,16 +1242,20 @@ function buildLinkRow(l) {
 
   function over(e) {
     e.preventDefault();
-    if (_dragL == null || !dragSettled(e.clientY)) return;
-    var from = linkIndex(node);
-    var to = dragTarget(D.linksBox, e.clientY, false, node);
+    if (!_dragNode || _dragL == null || !dragSettled(e.clientY)) return;
+    var from = linkIndex(_dragNode);
+    var to = dragTarget(D.linksBox, e.clientY, false, _dragNode);
     if (from < 0 || to === from) return;
     dragTook(e.clientY);
     snapFlip(D.linksBox, 'data-lid');
     _dragL = to;
     updateCat({ links: reorder(editCat().links || [], from, to) });
   }
-  function end(e) { e.preventDefault(); _dragL = null; _dragLastPos = null; setState({ dragLid: null }); }
+  function end(e) {
+    e.preventDefault();
+    _dragL = null; _dragNode = null; _dragLastPos = null;
+    setState({ dragLid: null });
+  }
 }
 
 function renderTray() {
