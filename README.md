@@ -34,6 +34,28 @@ Everything lives behind `設定 CONFIG` in the bottom right — panels, links, c
 
 Panels and links reorder by dragging.
 
+## QUOTES
+
+The quote in the top left advances on a schedule, or whenever you click it. Three sources, picked in `05 QUOTE` in the config tray.
+
+**BUILT-IN** is four lines that ship with the page. No network, nothing to set up.
+
+**CUSTOM** takes your own, typed straight into the box, one per line:
+
+```
+Ada Lovelace, The Analytical Engine weaves algebraic patterns.
+Sun Tzu, Every battle is won, or lost, before it is fought.
+A line with no comma is used as-is, with nobody attributed.
+```
+
+Only the first comma splits, so commas inside the quote itself are safe.
+
+**URL** pulls the same format from a remote file. A GitHub Gist is the easy way: make a gist, paste your quotes in, copy the raw file URL into the field, hit PULL. A `gist.github.com/...` page URL works too — it gets resolved through the API. Whatever comes back is cached locally, so it survives reloads and keeps working offline.
+
+ROTATE sets how often the quote changes on its own: every OPEN, hourly, daily, weekly, or OFF.
+
+The line format is the same one [Bonjourr](https://bonjourr.fr/docs/widgets/quotes/) uses, so a quotes file written for either works in both.
+
 ## DETAILS
 
 - Fonts are [DotGothic16](https://fonts.google.com/specimen/DotGothic16) and [IBM Plex Mono](https://fonts.google.com/specimen/IBM+Plex+Mono) from Google Fonts. They are the only remote asset.

@@ -36,6 +36,7 @@ input,select,button,textarea{font-family:'IBM Plex Mono',ui-monospace,monospace}
 /* ---- quote ---- */
 .quote{position:fixed;top:34px;left:40px;max-width:290px;display:flex;flex-direction:column;gap:9px;cursor:pointer;z-index:20}
 .quote-t{font-family:'DotGothic16',monospace;font-size:12px;line-height:1.85;color:var(--dim);text-wrap:pretty}
+.quote-a{font-size:9px;letter-spacing:2.2px;color:var(--dim);opacity:.7}
 
 /* ---- weather ---- */
 .wx{position:fixed;bottom:34px;left:40px;display:flex;flex-direction:column;gap:8px;z-index:20}
@@ -212,12 +213,17 @@ function groundPair() { var t = S.theme; return (t.b === 3 && t.gc) ? t.gc : (GR
 function modeKey() { return _inv ? 'l' : 'd'; }
 
 var BASE_QUOTES = [
-  'Simplicity is a discipline, not a style.',
-  'The terminal remembers what the desktop forgets.',
-  'A tool you understand beats a tool that is merely fast.',
-  'Do less, but do it on purpose.'
+  { text: 'Simplicity is a discipline, not a style.', author: '' },
+  { text: 'The terminal remembers what the desktop forgets.', author: '' },
+  { text: 'A tool you understand beats a tool that is merely fast.', author: '' },
+  { text: 'Do less, but do it on purpose.', author: '' }
 ];
 var QUOTES = BASE_QUOTES.slice();
+var QSOURCES = [
+  { id: 'builtin', label: 'BUILT-IN' },
+  { id: 'custom',  label: 'CUSTOM'   },
+  { id: 'url',     label: 'URL'      }
+];
 
 var ENGINES = [
   { id: 'k', name: 'KAGI',      url: 'https://kagi.com/search?q=' },
@@ -257,7 +263,7 @@ function defaults() {
     now: Date.now(), openId: null, trayOpen: false, line: '', quoteIdx: 0,
     greeting: 'ターミナル接続確立：ハロー',
     city: 'TOKYO', unit: 'C', clock24: true,
-    gistUrl: 'gist.github.com/username/gistid',
+    gistUrl: '', quoteSource: 'builtin', quoteCustom: '',
     editCatId: 'workspace', nl: '', nk: '', nu: '',
     textScale: 1, fitMode: 'fit', boxH: 320,
     align: 'center', imgs: [], imgIdx: 0, imgSched: 'day', quoteSched: 'day',
@@ -358,7 +364,8 @@ function persist() {
   try {
     localStorage.setItem(LS_KEY, JSON.stringify({
       greeting: S.greeting, city: S.city, unit: S.unit, clock24: S.clock24,
-      gistUrl: S.gistUrl, theme: S.theme, cats: S.cats, quoteIdx: S.quoteIdx,
+      gistUrl: S.gistUrl, quoteSource: S.quoteSource, quoteCustom: S.quoteCustom,
+      theme: S.theme, cats: S.cats, quoteIdx: S.quoteIdx,
       textScale: S.textScale, fitMode: S.fitMode, boxH: S.boxH,
       align: S.align, imgIdx: S.imgIdx, imgSched: S.imgSched, quoteSched: S.quoteSched,
       engine: S.engine, searchEnabled: S.searchEnabled, linkIcons: S.linkIcons,
@@ -370,7 +377,8 @@ function persist() {
 function exportable() {
   return {
     greeting: S.greeting, greetMode: S.greetMode, greets: S.greets, bands: S.bands,
-    city: S.city, unit: S.unit, clock24: S.clock24, gistUrl: S.gistUrl,
+    city: S.city, unit: S.unit, clock24: S.clock24,
+    gistUrl: S.gistUrl, quoteSource: S.quoteSource, quoteCustom: S.quoteCustom,
     theme: S.theme, themeMode: S.themeMode, align: S.align,
     textScale: S.textScale, fitMode: S.fitMode, boxH: S.boxH,
     engine: S.engine, searchEnabled: S.searchEnabled, linkIcons: S.linkIcons,
@@ -593,11 +601,33 @@ function patchImg(patch) {
 /* ------------------------------------------------------------------ *
  * quotes — PULL fetches the configured source, falls back to built-ins
  * ------------------------------------------------------------------ */
-function loadQuoteCache() {
+/* One quote per line, "Author, the quote text". A line with no comma is
+   taken as an unattributed quote. Only the first comma splits, so commas
+   inside the quote itself survive. */
+function parseQuotes(raw) {
+  return String(raw || '').split(/\r?\n/).map(function (l) {
+    l = l.trim();
+    if (!l) return null;
+    var i = l.indexOf(',');
+    if (i < 0) return { text: l, author: '' };
+    return { author: l.slice(0, i).trim(), text: l.slice(i + 1).trim() };
+  }).filter(function (q) { return q && q.text; });
+}
+
+function cachedRemoteQuotes() {
   try {
     var c = JSON.parse(localStorage.getItem(Q_KEY) || 'null');
-    if (c && c.url === S.gistUrl && Array.isArray(c.list) && c.list.length) QUOTES = c.list;
+    if (c && c.url === S.gistUrl && Array.isArray(c.list) && c.list.length) return c.list;
   } catch (e) {}
+  return null;
+}
+
+function applyQuotes() {
+  var list = null;
+  if (S.quoteSource === 'custom') list = parseQuotes(S.quoteCustom);
+  else if (S.quoteSource === 'url') list = cachedRemoteQuotes();
+  QUOTES = (list && list.length) ? list : BASE_QUOTES.slice();
+  if (S.quoteIdx >= QUOTES.length) S.quoteIdx = 0;
 }
 
 function gistEndpoint(url) {
@@ -623,18 +653,16 @@ function pullQuotes() {
         var files = body && body.files || {};
         Object.keys(files).forEach(function (k) { text += (files[k].content || '') + '\n'; });
       } else { text = String(body); }
-      var list = text.split('\n')
-        .map(function (l) { return l.replace(/^\s*[-*>#]+\s*/, '').trim(); })
-        .filter(function (l) { return l.length > 1; });
+      var list = parseQuotes(text);
       if (!list.length) throw 0;
-      QUOTES = list;
       try { localStorage.setItem(Q_KEY, JSON.stringify({ url: S.gistUrl, list: list })); } catch (e) {}
+      QUOTES = list;
       _pullMsg = 'OK';
       set({ quoteIdx: 0 });
       setTimeout(function () { _pullMsg = 'PULL'; renderTray(); }, 1400);
     })
     .catch(function () {
-      QUOTES = BASE_QUOTES.slice();
+      applyQuotes();
       _pullMsg = 'OFFLINE';
       render();
       setTimeout(function () { _pullMsg = 'PULL'; renderTray(); }, 1600);
@@ -874,9 +902,10 @@ function buildShell() {
   D.grid = h('div', { c: 'grid' });
 
   D.quoteT = h('div', { c: 'quote-t' });
+  D.quoteA = h('div', { c: 'quote-a' });
   D.quote = h('div', { c: 'quote', btn: 1, al: 'Next quote', on: { click: function () {
     set({ quoteIdx: (S.quoteIdx + 1) % QUOTES.length });
-  } } }, D.quoteT);
+  } } }, [D.quoteT, D.quoteA]);
 
   D.wxCity = h('div', { c: 'wx-city' });
   D.wxTemp = h('span', { c: 'wx-temp' });
@@ -980,7 +1009,10 @@ function paint() {
   D.cWk.textContent   = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][d.getDay()];
   D.cTime.textContent = p(hh) + ':' + p(d.getMinutes()) + (suffix ? ' ' + suffix : '');
 
-  D.quoteT.textContent = QUOTES[S.quoteIdx % QUOTES.length] || '';
+  var q = QUOTES[S.quoteIdx % QUOTES.length] || { text: '', author: '' };
+  D.quoteT.textContent = q.text || '';
+  D.quoteA.textContent = q.author ? '— ' + q.author : '';
+  D.quoteA.style.display = q.author ? '' : 'none';
 
   var conv = function (v) { return S.unit === 'C' ? v : Math.round(v * 9 / 5 + 32); };
   D.wxCity.textContent = S.city + ' · 天気';
@@ -1389,14 +1421,32 @@ function renderTray() {
     ])
   ]);
 
-  /* 05 QUOTE · GIST */
+  /* 05 QUOTE */
   D.pull = btn(_pullMsg, pullQuotes, { s: 'width:64px;flex:none;letter-spacing:1px' });
+  var qCustom = h('textarea', { c: 'ta', s: 'height:74px', a: { 'data-k': 'qcustom', spellcheck: 'false',
+    placeholder: 'Author, the quote text' }, on: {
+    input: function (e) { S.quoteCustom = e.target.value; applyQuotes(); paint(); persist(); }
+  } });
+  qCustom.value = S.quoteCustom;
+
   var s05 = sec(null, [
-    head('05 QUOTE · GIST'),
-    h('div', { c: 'row' }, [
-      field('gist', S.gistUrl, function (e) { set({ gistUrl: e.target.value }); }, { c: 'tiny', s: 'font-size:11px;padding:9px 10px' }),
+    head('05 QUOTE · 引用'),
+    h('div', { c: 'row' }, QSOURCES.map(function (o) {
+      return h('div', { c: 'opt' + (S.quoteSource === o.id ? ' on' : ''), t: o.label, btn: 1, on: { click: function () {
+        _qBucket = undefined;
+        S.quoteSource = o.id; S.quoteIdx = 0;
+        applyQuotes();
+        set({ quoteSource: o.id, quoteIdx: 0 });
+      } } });
+    })),
+    S.quoteSource === 'custom' ? qCustom : null,
+    S.quoteSource === 'url' ? h('div', { c: 'row' }, [
+      field('gist', S.gistUrl, function (e) { set({ gistUrl: e.target.value }); },
+        { c: 'tiny', ph: 'raw gist URL', s: 'font-size:11px;padding:9px 10px' }),
       D.pull
-    ]),
+    ]) : null,
+    (S.quoteSource === 'custom' || S.quoteSource === 'url')
+      ? note('AUTHOR, QUOTE TEXT · ONE PER LINE') : null,
     h('div', { c: 'row mid' }, [
       h('span', { c: 'lab', t: 'ROTATE' }),
       h('div', { s: 'flex:1;display:flex;gap:5px' }, SCHED.map(function (o) {
@@ -1598,7 +1648,7 @@ function boot() {
     }
     Object.assign(S, saved);
   }
-  loadQuoteCache();
+  applyQuotes();
   if (S.quoteSched === 'open' && QUOTES.length > 1) S.quoteIdx = (S.quoteIdx + 1) % QUOTES.length;
   _qBucket = bucketOf(S.quoteSched, Date.now());
 
