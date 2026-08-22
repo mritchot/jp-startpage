@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "JP-Startpage",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Keyboard-driven browser startpage with a Japanese terminal aesthetic.",
   "icons": {
     "16": "icons/icon-16.png",
