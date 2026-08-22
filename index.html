@@ -50,9 +50,10 @@ input,select,button,textarea{font-family:'IBM Plex Mono',ui-monospace,monospace}
 .cmd-p{font-size:11px;color:var(--accent)}
 .cmd-echo{font-family:'DotGothic16',monospace;font-size:14px;letter-spacing:7px;color:var(--accent);white-space:nowrap}
 .cmd-cur{width:8px;height:14px;background:var(--accent);display:block;animation:blink 1.06s steps(1) infinite}
-.cmd-in{width:300px;background:transparent;border:none;outline:none;font-family:'DotGothic16',monospace;font-size:15px;letter-spacing:2px;color:var(--fg);caret-color:var(--accent)}
-.cmd-eng{font-size:9px;letter-spacing:2.4px;color:var(--accent);white-space:nowrap}
-.cmd-hint{font-size:9px;letter-spacing:2.4px;color:var(--dim);margin-left:6px;white-space:nowrap}
+.cmd-in{width:240px;background:transparent;border:none;outline:none;font-family:'DotGothic16',monospace;font-size:15px;letter-spacing:2px;color:var(--fg);caret-color:var(--accent)}
+.cmd-eng{width:74px;flex:none;font-size:9px;letter-spacing:2.4px;color:var(--accent);white-space:nowrap}
+.cmd-hint{width:292px;flex:none;font-size:9px;letter-spacing:2.4px;color:var(--dim);margin-left:6px;white-space:nowrap}
+.cmd-slot{width:var(--cmdSlot,326px);flex:none;display:flex;align-items:center;gap:12px}
 .off{display:none!important}
 
 /* ---- rail ---- */
@@ -100,10 +101,8 @@ input,select,button,textarea{font-family:'IBM Plex Mono',ui-monospace,monospace}
 .lnk:hover{color:var(--accent)}
 .lnk img{width:15px;height:15px;flex:none;image-rendering:pixelated;filter:grayscale(1) contrast(1.3) brightness(1.2);opacity:.9}
 .lnk>span{overflow:hidden;text-overflow:ellipsis}
-.hk{display:inline-flex;align-items:center;justify-content:center;
-  width:1.32em;height:1.32em;line-height:1;flex:none;
-  background:var(--accent);color:var(--bg);vertical-align:-.26em}
-.hk.inv{background:var(--bg);color:var(--accent)}
+.sl{color:var(--accent);opacity:.55}
+.hk{color:var(--accent)}
 
 /* ---- config launcher ---- */
 .cfg-btn{position:fixed;bottom:28px;right:28px;display:flex;align-items:center;gap:10px;border:1px solid var(--line);
@@ -479,6 +478,7 @@ function applySizing() {
   Sv('--tAlign', S.align === 'top' ? 'flex-start' : 'center');
   Sv('--clockJust', 'center');            /* the clock always centres */
   Sv('--tGap', px(14 * sc));
+  Sv('--cmdSlot', S.searchEnabled ? '326px' : '96px');
   applyImage();
 }
 
@@ -857,7 +857,8 @@ function buildShell() {
   } });
   D.cmdEng  = h('span', { c: 'cmd-eng' });
   D.cmdHint = h('span', { c: 'cmd-hint' });
-  D.cmd = h('div', { c: 'cmd' }, [D.cmdP, D.cmdEcho, D.cmdCur, D.cmdIn, D.cmdEng, D.cmdHint]);
+  D.cmdSlot = h('div', { c: 'cmd-slot' }, [D.cmdEcho, D.cmdCur, D.cmdIn, D.cmdEng]);
+  D.cmd = h('div', { c: 'cmd' }, [D.cmdP, D.cmdSlot, D.cmdHint]);
 
   D.cDate = h('div', { c: 'vt c-date' });
   D.cWk   = h('div', { c: 'vt c-wk' });
@@ -957,7 +958,8 @@ function paint() {
   D.cmdEng.textContent = parseQuery(S.query).eng.name;
   D.cmdHint.textContent = S.cmdOpen
     ? 'ENTER TO SEARCH · ESC CANCELS'
-    : (S.openId ? 'ESC TO CLOSE' : 'PRESS A HIGHLIGHTED KEY · / TO SEARCH');
+    : (S.openId ? 'ESC TO CLOSE'
+                : 'PRESS A HIGHLIGHTED KEY' + (S.searchEnabled ? ' · / TO SEARCH' : ''));
   D.cmdEcho.classList.toggle('off', S.cmdOpen);
   D.cmdCur.classList.toggle('off', S.cmdOpen);
   D.cmdIn.classList.toggle('off', !S.cmdOpen);
@@ -1000,9 +1002,12 @@ function buildCat(c) {
   var m = mark(c.name, c.key);
   var isOpen = S.openId === c.id;
 
-  var tabT = h('div', { c: 'vt tab-t' }, [
-    m.pre, h('span', { c: 'hk' + (isOpen ? ' inv' : ''), t: m.k }), m.post
-  ]);
+  var tabT = isOpen
+    ? h('div', { c: 'vt tab-t', t: m.pre + '/' + m.k + '/' + m.post })
+    : h('div', { c: 'vt tab-t' }, [
+        m.pre, h('span', { c: 'sl', t: '/' }), h('span', { c: 'hk', t: m.k }),
+        h('span', { c: 'sl', t: '/' }), m.post
+      ]);
 
   var tab = h('div', { c: 'box tab' + (isOpen ? ' on' : ''), btn: 1, al: c.name, on: { click: function () {
     setState({ openId: S.openId === c.id ? null : c.id, echo: '' });
@@ -1015,7 +1020,10 @@ function buildCat(c) {
       var icon = faviconFor(l.url);
       return h('a', { c: 'lnk', a: { href: l.url, target: '_blank', rel: 'noreferrer' } }, [
         icon ? h('img', { a: { src: icon, alt: '' } }) : null,
-        h('span', {}, [lm.pre, h('span', { c: 'hk', t: lm.k }), lm.post])
+        h('span', {}, [
+          lm.pre, h('span', { c: 'sl', t: '/' }), h('span', { c: 'hk', t: lm.k }),
+          h('span', { c: 'sl', t: '/' }), lm.post
+        ])
       ]);
     })));
   }
