@@ -59,7 +59,7 @@ input,select,button,textarea{font-family:'IBM Plex Mono',ui-monospace,monospace}
 
 /* ---- rail ---- */
 .rail{height:100vh;display:flex;align-items:center;gap:16px;overflow-x:auto;overflow-y:hidden;
-  scrollbar-width:none;padding-left:calc(50vw - 419px);padding-right:140px;box-sizing:border-box}
+  scrollbar-width:none;padding-left:max(40px,calc(50vw - 419px));padding-right:140px;box-sizing:border-box}
 .rail::-webkit-scrollbar{display:none}
 .box{height:var(--boxH,320px);border:1px solid var(--line);background:var(--panel);box-sizing:border-box;flex:none}
 .vt{writing-mode:vertical-rl;text-orientation:upright;white-space:nowrap}
@@ -937,6 +937,14 @@ function buildShell() {
   } });
   document.body.appendChild(D.fileIn);
 
+  /* the page never scrolls vertically, so a wheel here means "move the rail" */
+  D.rail.addEventListener('wheel', function (e) {
+    if (!e.deltaY || e.ctrlKey) return;
+    if (D.rail.scrollWidth <= D.rail.clientWidth) return;
+    e.preventDefault();
+    D.rail.scrollLeft += e.deltaY;
+  }, { passive: false });
+
   D.imgBox.addEventListener('dragover',  function (e) { e.preventDefault(); D.imgBox.style.borderColor = 'var(--accent)'; });
   D.imgBox.addEventListener('dragleave', function ()  { D.imgBox.style.borderColor = ''; });
   D.imgBox.addEventListener('drop',      function (e) {
@@ -1002,6 +1010,21 @@ function paint() {
 /* ------------------------------------------------------------------ *
  * category strip
  * ------------------------------------------------------------------ */
+var _shownOpen;
+function revealOpen() {
+  if (S.openId === _shownOpen) return;
+  _shownOpen = S.openId;
+  if (!S.openId || !D.rail || !D.panels) return;
+  var n = D.panels.querySelector('[data-cid="' + S.openId + '"]');
+  if (!n) return;
+  var r = n.getBoundingClientRect(), rail = D.rail.getBoundingClientRect();
+  var pad = 24, at = D.rail.scrollLeft, target = at;
+  if (r.right > rail.right - pad) target = at + (r.right - (rail.right - pad));
+  else if (r.left < rail.left + pad) target = at - ((rail.left + pad) - r.left);
+  if (target === at) return;
+  D.rail.scrollLeft = target;   /* plain write: smooth scrollTo is unreliable here */
+}
+
 function renderPanels() {
   /* while a drag is live, move the existing nodes instead of rebuilding —
      destroying the dragged element would abort the drag operation */
@@ -1009,6 +1032,7 @@ function renderPanels() {
   clear(D.panels);
   D.panels.appendChild(frag(S.cats.map(buildCat)));
   playFlip();
+  revealOpen();
 }
 
 function reflowPanels() {
