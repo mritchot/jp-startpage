@@ -9,17 +9,18 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-html,body{margin:0;padding:0;background:#0b0b12}
-a{color:#3ce0ec;text-decoration:none}
-a:hover{color:#ff4fd8}
-::selection{background:#3ce0ec;color:#0b0b12}
+html,body{margin:0;padding:0;background:#12100d}
+a{color:var(--accent,#d4cdb8);text-decoration:none}
+a:hover{color:var(--accent2,#c1503c)}
+::selection{background:#d4cdb8;color:#12100d}
+::selection{background:var(--accent);color:var(--bg)}
 input,select,button,textarea{font-family:'IBM Plex Mono',ui-monospace,monospace}
 @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
 
 #root{
-  --bg:#0b0b12;--panel:rgba(255,255,255,.028);--panelHi:rgba(255,255,255,.06);
-  --line:rgba(255,255,255,.14);--fg:#d9deea;--dim:rgba(217,222,234,.42);
-  --accent:#3ce0ec;--accent2:#ff4fd8;
+  --bg:#12100d;--panel:rgba(214,201,173,.032);--panelHi:rgba(214,201,173,.075);
+  --line:rgba(190,178,152,.17);--fg:#9c9585;--dim:rgba(156,149,133,.46);
+  --accent:#d4cdb8;--accent2:#c1503c;
   position:relative;min-height:100vh;background:var(--bg);color:var(--fg);
   font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px;overflow:hidden
 }
@@ -27,8 +28,10 @@ input,select,button,textarea{font-family:'IBM Plex Mono',ui-monospace,monospace}
 /* ---- overlays ---- */
 .vig{position:fixed;inset:0;pointer-events:none;z-index:70;
   background:radial-gradient(ellipse at 50% 45%,transparent 40%,var(--vig,rgba(0,0,0,.55)) 100%)}
-.crt{position:fixed;inset:0;pointer-events:none;z-index:80;opacity:1;
-  background:repeating-linear-gradient(to bottom,var(--scan,rgba(0,0,0,.22)) 0px,var(--scan,rgba(0,0,0,.22)) 1px,transparent 1px,transparent 3px)}
+.grid{position:fixed;inset:0;pointer-events:none;z-index:80;opacity:1;
+  background-image:
+    repeating-linear-gradient(to right,var(--grid,rgba(0,0,0,.07)) 0 1px,transparent 1px var(--gridGap,24px)),
+    repeating-linear-gradient(to bottom,var(--grid,rgba(0,0,0,.07)) 0 1px,transparent 1px var(--gridGap,24px))}
 
 /* ---- quote ---- */
 .quote{position:fixed;top:34px;left:40px;max-width:290px;display:flex;flex-direction:column;gap:9px;cursor:pointer;z-index:20}
@@ -176,13 +179,14 @@ var IMG_KEY = 'jp-startpage-images-v1';
 var WX_KEY  = 'jp-startpage-wx-v1';
 var Q_KEY   = 'jp-startpage-quotes-v1';
 
+/* index 0 is the YoRHa monochrome default; the rest stay available as picks */
 var ACCENTS = [
-  { d: '#3ce0ec', l: '#0d7a86' }, { d: '#ff4fd8', l: '#a3178a' },
-  { d: '#ffb01f', l: '#8a5a00' }, { d: '#6ee787', l: '#1c7137' },
-  { d: '#e6e9f2', l: '#1a1a22' }
+  { d: '#d4cdb8', l: '#33302a' }, { d: '#c1503c', l: '#8c3122' },
+  { d: '#3ce0ec', l: '#0d7a86' }, { d: '#ffb01f', l: '#8a5a00' },
+  { d: '#6ee787', l: '#1c7137' }
 ];
-var BGS = ['#0b0b12', '#0d1114', '#13101c', '#000000'];
-var LIGHT_BG = '#e7e5dd';
+var BGS = ['#12100d', '#0d1114', '#13101c', '#000000'];
+var LIGHT_BG = '#c9c6b5';
 
 var BASE_QUOTES = [
   'Simplicity is a discipline, not a style.',
@@ -240,7 +244,7 @@ function defaults() {
     bands: { morning: 5, afternoon: 11, evening: 17, night: 22 },
     tabTitle: '新規タブ · START', favGlyph: '端',
     cfgText: '', cfgMsg: '', dragCid: null, dragLid: null,
-    theme: { a: 0, b: 0, invert: false, crt: true },
+    theme: { a: 0, b: 0, invert: false, grid: true },
     cats: [
       { id: 'workspace', name: 'workspace', key: 'w', links: [
         { label: 'gmail', key: 'g', url: 'https://mail.google.com' },
@@ -371,17 +375,17 @@ function applyTheme() {
   var inv = S.themeMode === 'auto' ? (hr >= SUN.rise && hr < SUN.set) : S.themeMode === 'light';
   var Sv = function (k, v) { el.style.setProperty(k, v); };
   Sv('--bg',      inv ? LIGHT_BG : BGS[t.b]);
-  Sv('--fg',      inv ? '#16161c' : '#d9deea');
-  Sv('--dim',     inv ? 'rgba(22,22,28,.5)' : 'rgba(217,222,234,.42)');
-  Sv('--line',    inv ? 'rgba(0,0,0,.20)' : 'rgba(255,255,255,.14)');
-  Sv('--panel',   inv ? 'rgba(0,0,0,.035)' : 'rgba(255,255,255,.028)');
-  Sv('--panelHi', inv ? 'rgba(0,0,0,.075)' : 'rgba(255,255,255,.06)');
+  Sv('--fg',      inv ? '#565243' : '#9c9585');
+  Sv('--dim',     inv ? 'rgba(69,65,54,.52)' : 'rgba(156,149,133,.46)');
+  Sv('--line',    inv ? 'rgba(69,65,54,.38)' : 'rgba(190,178,152,.17)');
+  Sv('--panel',   inv ? 'rgba(249,246,235,.46)' : 'rgba(214,201,173,.032)');
+  Sv('--panelHi', inv ? 'rgba(249,246,235,.72)' : 'rgba(214,201,173,.075)');
   Sv('--accent',  inv ? ACCENTS[t.a].l : ACCENTS[t.a].d);
-  Sv('--accent2', inv ? '#a3178a' : '#ff4fd8');
-  Sv('--vig',     inv ? 'rgba(120,116,104,.20)' : 'rgba(0,0,0,.55)');
-  Sv('--scan',    inv ? 'rgba(40,38,34,.07)' : 'rgba(0,0,0,.22)');
-  Sv('--imgBg',   inv ? 'rgba(0,0,0,.05)' : 'rgba(0,0,0,.22)');
-  if (D.crt) D.crt.style.opacity = t.crt ? '1' : '0';
+  Sv('--accent2', inv ? '#8c3122' : '#c1503c');
+  Sv('--vig',     inv ? 'rgba(120,112,92,.24)' : 'rgba(10,6,3,.62)');
+  Sv('--grid',    inv ? 'rgba(69,65,54,.11)' : 'rgba(190,175,150,.055)');
+  Sv('--imgBg',   inv ? 'rgba(69,65,54,.08)' : 'rgba(0,0,0,.25)');
+  if (D.grid) D.grid.style.opacity = t.grid ? '1' : '0';
   document.body.style.background = inv ? LIGHT_BG : BGS[t.b];
   document.title = S.tabTitle || '新規タブ';
   setFavicon(inv ? ACCENTS[t.a].l : ACCENTS[t.a].d, inv ? LIGHT_BG : BGS[t.b]);
@@ -789,7 +793,7 @@ function buildShell() {
   D.root = document.getElementById('root');
 
   D.vig = h('div', { c: 'vig' });
-  D.crt = h('div', { c: 'crt' });
+  D.grid = h('div', { c: 'grid' });
 
   D.quoteT = h('div', { c: 'quote-t' });
   D.quote = h('div', { c: 'quote', btn: 1, al: 'Next quote', on: { click: function () {
@@ -856,7 +860,7 @@ function buildShell() {
 
   D.trayHost = h('div');
 
-  D.root.appendChild(frag([D.rail, D.quote, D.wx, D.cmd, D.cfgBtn, D.trayHost, D.vig, D.crt]));
+  D.root.appendChild(frag([D.rail, D.quote, D.wx, D.cmd, D.cfgBtn, D.trayHost, D.vig, D.grid]));
 
   D.fileIn = h('input', { a: { type: 'file', accept: 'image/*', multiple: true }, s: 'display:none', on: {
     change: function (e) { ingest(e.target.files); e.target.value = ''; }
@@ -1159,8 +1163,8 @@ function renderTray() {
       btn(S.themeMode === 'auto' ? 'AUTO SUN' : (S.themeMode === 'light' ? 'LIGHT' : 'DARK'), function () {
         set({ themeMode: S.themeMode === 'auto' ? 'dark' : (S.themeMode === 'dark' ? 'light' : 'auto') }, true);
       }, { f: 1 }),
-      btn(S.theme.crt ? 'CRT ON' : 'CRT OFF', function () {
-        set({ theme: Object.assign({}, S.theme, { crt: !S.theme.crt }) }, true);
+      btn(S.theme.grid ? 'GRID ON' : 'GRID OFF', function () {
+        set({ theme: Object.assign({}, S.theme, { grid: !S.theme.grid }) }, true);
       }, { f: 1 }),
       btn(S.clock24 ? '24H' : '12H', function () { set({ clock24: !S.clock24 }); }, { f: 1 })
     ]),
@@ -1435,6 +1439,10 @@ function boot() {
       saved.themeMode = saved.autoTheme ? 'auto' : ((saved.theme && saved.theme.invert) ? 'light' : 'auto');
     }
     delete saved.autoTheme;
+    if (saved.theme && saved.theme.grid === undefined) {
+      saved.theme.grid = saved.theme.crt !== false;
+      delete saved.theme.crt;
+    }
     Object.assign(S, saved);
   }
   loadQuoteCache();
