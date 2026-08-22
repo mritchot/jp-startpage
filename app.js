@@ -160,6 +160,7 @@ function h(tag, opt, kids) {
       e.setAttribute('tabindex', '0');
       if (opt.al) e.setAttribute('aria-label', opt.al);
       e.addEventListener('keydown', function (ev) {
+        if (typing()) return;   /* the command line owns the keyboard */
         if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); e.click(); }
       });
     }
@@ -782,7 +783,12 @@ function handleKey(e) {
     else setState({ openId: null, line: '' });
     return;
   }
-  if (e.key === '/' && S.searchEnabled) { e.preventDefault(); setState({ line: '/' }); return; }
+  if (e.key === '/' && S.searchEnabled) {
+    e.preventDefault();
+    try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch (err) {}
+    setState({ line: '/' });
+    return;
+  }
 
   var k = (e.key || '').toLowerCase();
   if (k.length !== 1 || !/[a-z0-9]/.test(k)) return;
