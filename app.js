@@ -74,7 +74,6 @@ var WMO = {
 
 /* live-ish values; fall back to the design's constants until a fetch lands */
 var WX  = { c: 26, hi: 29, lo: 21, cond: 'CLEAR', kana: '晴', live: false };
-var SUN = { rise: 6.2, set: 19.8 };
 
 /* ------------------------------------------------------------------ *
  * state
@@ -88,13 +87,13 @@ function defaults() {
     gistToken: '', gistId: '', syncAt: 0,
     editCatId: 'workspace', nl: '', nk: '', nu: '',
     textScale: 1, fitMode: 'fit', boxH: 320,
-    align: 'center', imgs: [], imgIdx: 0, imgSched: 'day', quoteSched: 'day',
+    align: 'top', imgs: [], imgIdx: 0, imgSched: 'day', quoteSched: 'day',
     engine: 'k', engineCustom: '', searchEnabled: true, linkIcons: false,
     greetMode: 'static', themeMode: 'auto',
     greets: { morning: 'おはよう', afternoon: 'こんにちは', evening: 'こんばんは', night: 'おやすみ' },
     bands: { morning: 5, afternoon: 11, evening: 17, night: 22 },
     tabTitle: '新規タブ · START',
-    cfgText: '', cfgMsg: '', dragCid: null, dragLid: null,
+    cfgMsg: '', dragCid: null, dragLid: null,
     theme: { a: 0, b: 0, grid: true,
              ac: { d: '#d4cdb8', l: '#33302a' }, gc: { d: '#12100d', l: '#c9c6b5' } },
     cats: [
@@ -223,12 +222,18 @@ function set(patch, theme) {
  * ------------------------------------------------------------------ */
 var _inv = null;
 
+/* AUTO follows the operating system's light/dark setting */
+function prefersDark() {
+  try { return window.matchMedia('(prefers-color-scheme: dark)').matches; }
+  catch (e) { return true; }
+}
+
 function applyTheme() {
   var el = D.root; if (!el) return;
   var t = S.theme;
   var d = new Date(S.now);
   var hr = d.getHours() + d.getMinutes() / 60;
-  var inv = S.themeMode === 'auto' ? (hr >= SUN.rise && hr < SUN.set) : S.themeMode === 'light';
+  var inv = S.themeMode === 'auto' ? !prefersDark() : S.themeMode === 'light';
   var Sv = function (k, v) { el.style.setProperty(k, v); };
   _inv = inv;
   var A = accentPair(), G = groundPair();
@@ -519,16 +524,11 @@ function tzLabel(tz) {
   return seg.replace(/_/g, ' ').toUpperCase() || '';
 }
 
-function hourOf(iso) {
-  var m = String(iso || '').match(/T(\d{2}):(\d{2})/);
-  return m ? Number(m[1]) + Number(m[2]) / 60 : null;
-}
-
 function forecastAt(lat, lon, label, key) {
   return fetch('https://api.open-meteo.com/v1/forecast?forecast_days=1&timezone=auto' +
     '&latitude=' + lat + '&longitude=' + lon +
     '&current=temperature_2m,weather_code' +
-    '&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset')
+    '&daily=temperature_2m_max,temperature_2m_min')
     .then(function (r) { return r.json(); })
     .then(function (f) {
       if (!f || !f.current || !f.daily) throw 0;
@@ -539,13 +539,10 @@ function forecastAt(lat, lon, label, key) {
         lo: Math.round(f.daily.temperature_2m_min[0]),
         cond: code[0], kana: code[1], live: true
       };
-      var rise = hourOf(f.daily.sunrise && f.daily.sunrise[0]);
-      var setH = hourOf(f.daily.sunset && f.daily.sunset[0]);
       WX = wx;
-      SUN = { rise: rise == null ? SUN.rise : rise, set: setH == null ? SUN.set : setH };
       WX_LABEL = label || tzLabel(f.timezone) || WX_LABEL;
       try {
-        localStorage.setItem(WX_KEY, JSON.stringify({ key: key, at: Date.now(), wx: WX, sun: SUN, label: WX_LABEL }));
+        localStorage.setItem(WX_KEY, JSON.stringify({ key: key, at: Date.now(), wx: WX, label: WX_LABEL }));
       } catch (e) {}
       paint();
       if (S.trayOpen) renderTray();   /* the location readout is built from WX_LABEL */
@@ -563,7 +560,7 @@ function fetchWeather(force) {
   try {
     var c = JSON.parse(localStorage.getItem(WX_KEY) || 'null');
     if (c && c.key === key && Date.now() - c.at < 1800000) {
-      WX = c.wx; SUN = c.sun; if (c.label) WX_LABEL = c.label;
+      WX = c.wx; if (c.label) WX_LABEL = c.label;
       paint();
       if (S.themeMode === 'auto') applyTheme();
       return;
@@ -603,6 +600,52 @@ function fetchWeather(force) {
       return forecastAt(p.latitude, p.longitude, city.toUpperCase(), key);
     })
     .catch(quiet);
+}
+
+/* ------------------------------------------------------------------ *
+ * config as a file
+ * ------------------------------------------------------------------ */
+var _cfgTimer;
+function cfgFlash(m) {
+  clearTimeout(_cfgTimer);
+  S.cfgMsg = m;
+  if (S.trayOpen) renderTray();
+  _cfgTimer = setTimeout(function () { S.cfgMsg = ''; if (S.trayOpen) renderTray(); }, 1800);
+}
+
+function cfgExport() {
+  try {
+    var d = new Date(), p = function (n) { return String(n).padStart(2, '0'); };
+    var name = 'jp-startpage-' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '.json';
+    var blob = new Blob([JSON.stringify(exportable(), null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    cfgFlash('SAVED');
+  } catch (e) { cfgFlash('FAILED'); }
+}
+
+function cfgImportFile(file) {
+  if (!file) return;
+  var r = new FileReader();
+  r.onload = function () {
+    try {
+      var o = JSON.parse(r.result);
+      if (!o || typeof o !== 'object' || Array.isArray(o)) throw 0;
+      delete o.gistToken;          /* a file must never hand us a token */
+      Object.assign(S, o);
+      applyQuotes();
+      applyTheme();
+      render();
+      persist();
+      fetchWeather(true);
+      cfgFlash('LOADED');
+    } catch (e) { cfgFlash('NOT A CONFIG FILE'); }
+  };
+  r.onerror = function () { cfgFlash('FAILED'); };
+  r.readAsText(file);
 }
 
 /* ------------------------------------------------------------------ *
@@ -919,10 +962,7 @@ function buildShell() {
   D.rail = h('div', { c: 'rail' }, [clock, D.imgBox, greet, D.panels]);
 
   D.cfgBtn = h('div', { c: 'cfg-btn', btn: 1, al: 'Config', on: { click: function () {
-    setState({
-      trayOpen: !S.trayOpen,
-      cfgText: S.trayOpen ? S.cfgText : JSON.stringify(exportable(), null, 1)
-    });
+    setState({ trayOpen: !S.trayOpen });
   } } }, [
     h('span', { c: 'cfg-dot' }),
     h('span', { c: 'cfg-lbl', t: '設定 CONFIG' })
@@ -936,6 +976,11 @@ function buildShell() {
     change: function (e) { ingest(e.target.files); e.target.value = ''; }
   } });
   document.body.appendChild(D.fileIn);
+
+  D.cfgFileIn = h('input', { a: { type: 'file', accept: 'application/json,.json' }, s: 'display:none', on: {
+    change: function (e) { cfgImportFile(e.target.files && e.target.files[0]); e.target.value = ''; }
+  } });
+  document.body.appendChild(D.cfgFileIn);
 
   /* No wheel handling here on purpose: the browser already scrolls the rail
      from a trackpad's horizontal swipe and from shift+wheel. Intercepting
@@ -1299,7 +1344,7 @@ function renderTray() {
   var s02 = sec(null, [
     head('02 DISPLAY · 表示'),
     h('div', { c: 'row' }, [
-      btn(S.themeMode === 'auto' ? 'AUTO SUN' : (S.themeMode === 'light' ? 'LIGHT' : 'DARK'), function () {
+      btn(S.themeMode === 'auto' ? 'SYSTEM' : (S.themeMode === 'light' ? 'LIGHT' : 'DARK'), function () {
         set({ themeMode: S.themeMode === 'auto' ? 'dark' : (S.themeMode === 'dark' ? 'light' : 'auto') }, true);
       }, { f: 1 }),
       btn(S.theme.grid ? 'GRID ON' : 'GRID OFF', function () {
@@ -1562,30 +1607,13 @@ function renderTray() {
   ]);
 
   /* 10 CONFIG */
-  var ta = h('textarea', { c: 'ta', a: { 'data-k': 'cfg', spellcheck: 'false' }, on: {
-    input: function (e) { S.cfgText = e.target.value; }
-  } });
-  ta.value = S.cfgText;
   var s10 = sec(null, [
     head('10 CONFIG · 設定'),
-    ta,
     h('div', { c: 'row' }, [
-      btn(S.cfgMsg === 'copied' ? 'COPIED' : 'EXPORT', function () {
-        var txt = JSON.stringify(exportable(), null, 1);
-        setState({ cfgText: txt, cfgMsg: 'copied' });
-        try { navigator.clipboard.writeText(txt); } catch (e) {}
-        setTimeout(function () { setState({ cfgMsg: '' }); }, 1400);
-      }, { f: 1 }),
-      btn(S.cfgMsg === 'bad' ? 'INVALID' : (S.cfgMsg === 'ok' ? 'APPLIED' : 'IMPORT'), function () {
-        try {
-          var o = JSON.parse(S.cfgText);
-          if (!o || typeof o !== 'object' || Array.isArray(o)) throw new Error('bad');
-          Object.assign(S, o, { cfgMsg: 'ok' });
-          render(); applyTheme(); persist();
-        } catch (e) { setState({ cfgMsg: 'bad' }); }
-        setTimeout(function () { setState({ cfgMsg: '' }); }, 1600);
-      }, { f: 1 })
-    ])
+      btn('EXPORT', cfgExport, { f: 1 }),
+      btn('IMPORT', function () { if (D.cfgFileIn) D.cfgFileIn.click(); }, { f: 1 })
+    ]),
+    note(S.cfgMsg || 'SAVES AND LOADS A .JSON FILE')
   ]);
 
   /* 11 SYNC */
@@ -1670,6 +1698,11 @@ function boot() {
   window.addEventListener('keydown', handleKey);
   window.addEventListener('paste', handlePaste);
 
+  try {
+    window.matchMedia('(prefers-color-scheme: dark)')
+      .addEventListener('change', function () { if (S.themeMode === 'auto') applyTheme(); });
+  } catch (e) {}
+
   var resizeRaf = null;
   window.addEventListener('resize', function () {
     if (resizeRaf) return;
@@ -1685,12 +1718,6 @@ function boot() {
     paint();
     tickRotation();
     tickQuoteRotation();
-    if (S.themeMode === 'auto') {
-      var d = new Date();
-      var hr = d.getHours() + d.getMinutes() / 60;
-      var want = hr >= SUN.rise && hr < SUN.set;
-      if (want !== _inv) applyTheme();
-    }
   }, 1000);
 
   setInterval(function () { fetchWeather(true); }, 1800000);
