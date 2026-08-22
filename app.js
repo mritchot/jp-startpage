@@ -9,8 +9,8 @@ var IMG_KEY = 'jp-startpage-images-v1';
 var WX_KEY  = 'jp-startpage-wx-v1';
 var Q_KEY   = 'jp-startpage-quotes-v1';
 
-/* index 0 is the YoRHa default; index 3 is the user's custom pair (theme.ac / theme.gc).
-   Each preset carries both modes, so GROUND now does something in light mode too. */
+/* Index 3 is the user's custom pair (theme.ac / theme.gc). Each preset
+   carries both modes, so a GROUND choice has an effect in light mode too. */
 var ACCENTS = [
   { d: '#d4cdb8', l: '#33302a' },
   { d: '#c1503c', l: '#8c3122' },
@@ -58,7 +58,7 @@ var SCHED = [
   { id: 'day',  label: 'DAY'  }, { id: 'week', label: 'WEEK' }, { id: 'off', label: 'OFF' }
 ];
 
-/* WMO weather codes -> the design's { cond, kana } pair */
+/* WMO weather codes -> { cond, kana } display pair */
 var WMO = {
   0:['CLEAR','晴'], 1:['MOSTLY CLEAR','快晴'], 2:['PARTLY CLOUDY','薄曇'], 3:['OVERCAST','曇'],
   45:['FOG','霧'], 48:['RIME FOG','霧'],
@@ -72,7 +72,7 @@ var WMO = {
   95:['THUNDERSTORM','雷雨'], 96:['HAIL STORM','雹'], 99:['HAIL STORM','雹']
 };
 
-/* live-ish values; fall back to the design's constants until a fetch lands */
+/* fallback values, shown until a live fetch lands */
 var WX  = { c: 26, hi: 29, lo: 21, cond: 'CLEAR', kana: '晴', live: false };
 
 /* ------------------------------------------------------------------ *
@@ -232,8 +232,6 @@ function prefersDark() {
 function applyTheme() {
   var el = D.root; if (!el) return;
   var t = S.theme;
-  var d = new Date(S.now);
-  var hr = d.getHours() + d.getMinutes() / 60;
   var inv = S.themeMode === 'auto' ? !prefersDark() : S.themeMode === 'light';
   var Sv = function (k, v) { el.style.setProperty(k, v); };
   _inv = inv;
@@ -628,6 +626,54 @@ function cfgExport() {
   } catch (e) { cfgFlash('FAILED'); }
 }
 
+/* Everything a link URL passes through: no http(s) scheme means it gets
+   https:// prefixed, so no stored link can carry a script scheme. */
+function safeUrl(raw) {
+  var u = String(raw == null ? '' : raw).trim();
+  if (!u || u === '#') return '#';
+  return /^https?:/i.test(u) ? u : 'https://' + u;
+}
+
+function sanitizeCats(cats) {
+  if (!Array.isArray(cats)) return null;
+  var out = cats.filter(function (c) { return c && typeof c === 'object'; })
+    .map(function (c, i) {
+      return {
+        id: String(c.id || 'cat' + i),
+        name: String(c.name || ''),
+        key: String(c.key || '').slice(0, 1).toLowerCase(),
+        links: (Array.isArray(c.links) ? c.links : []).map(function (l) {
+          l = (l && typeof l === 'object') ? l : {};
+          return {
+            label: String(l.label || ''),
+            key: String(l.key || '').slice(0, 1).toLowerCase(),
+            url: safeUrl(l.url)
+          };
+        })
+      };
+    });
+  return out.length ? out : null;
+}
+
+/* Imports and pulled payloads merge through this whitelist: only the keys
+   exportable() emits are accepted, so a crafted config can never set the
+   token, the gist id, or transient state. Cats are rebuilt field by field. */
+function applyConfig(o) {
+  Object.keys(exportable()).forEach(function (k) {
+    if (k === 'cats' || o[k] === undefined) return;
+    S[k] = o[k];
+  });
+  var cats = sanitizeCats(o.cats);
+  if (cats) S.cats = cats;
+  if (!S.cats.some(function (c) { return c.id === S.editCatId; })) S.editCatId = S.cats[0].id;
+  if (S.openId && !S.cats.some(function (c) { return c.id === S.openId; })) S.openId = null;
+  applyQuotes();
+  applyTheme();
+  render();
+  persist();
+  fetchWeather(true);
+}
+
 function cfgImportFile(file) {
   if (!file) return;
   var r = new FileReader();
@@ -635,13 +681,7 @@ function cfgImportFile(file) {
     try {
       var o = JSON.parse(r.result);
       if (!o || typeof o !== 'object' || Array.isArray(o)) throw 0;
-      delete o.gistToken;          /* a file must never hand us a token */
-      Object.assign(S, o);
-      applyQuotes();
-      applyTheme();
-      render();
-      persist();
-      fetchWeather(true);
+      applyConfig(o);
       cfgFlash('LOADED');
     } catch (e) { cfgFlash('NOT A CONFIG FILE'); }
   };
@@ -715,15 +755,8 @@ function syncPull() {
       if (!f || !f.content) throw 404;
       var o = JSON.parse(f.content);
       if (!o || typeof o !== 'object' || Array.isArray(o)) throw 0;
-      delete o.gistToken;                /* a payload must never set the token */
-      delete o.syncAt;
-      Object.assign(S, o);
       S.syncAt = Date.now();
-      applyQuotes();
-      applyTheme();
-      render();
-      persist();
-      fetchWeather(true);
+      applyConfig(o);
       syncFlash('PULLED');
     })
     .catch(function (e) { syncFlash(syncErr(e)); });
@@ -1534,8 +1567,7 @@ function renderTray() {
         if (!S.nl.trim()) return;
         var label = S.nl.trim();
         var key = (S.nk || label[0]).toLowerCase();
-        var raw = S.nu.trim();
-        var url = raw ? (/^https?:/.test(raw) ? raw : 'https://' + raw) : '#';
+        var url = safeUrl(S.nu);
         S.nl = ''; S.nk = ''; S.nu = '';
         updateCat({ links: (ec.links || []).concat([{ label: label, key: key, url: url }]) });
       }, { s: 'width:44px;flex:none;padding:8px;font-size:10px;letter-spacing:0' })
