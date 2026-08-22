@@ -284,7 +284,7 @@ function defaults() {
     bands: { morning: 5, afternoon: 11, evening: 17, night: 22 },
     tabTitle: '新規タブ · START', favGlyph: '端',
     cfgText: '', cfgMsg: '', dragCid: null, dragLid: null,
-    theme: { a: 0, b: 0, grid: false,
+    theme: { a: 0, b: 0, grid: true,
              ac: { d: '#d4cdb8', l: '#33302a' }, gc: { d: '#12100d', l: '#c9c6b5' } },
     cats: [
       { id: 'workspace', name: 'workspace', key: 'w', links: [
@@ -1393,14 +1393,14 @@ function renderTray() {
   var sizing = computeSizing();
 
   /* 01 COLOR */
-  var s01 = sec('wide', [head('01 COLOR')]
+  var s01 = sec('wide', [head('01 COLOR · 色')]
     .concat(colorControl('accent'))
     .concat(colorControl('ground'))
     .concat([note('HEX SETS THE ' + (_inv ? 'LIGHT' : 'DARK') + ' MODE ONLY')]));
 
   /* 02 DISPLAY */
   var s02 = sec(null, [
-    head('02 DISPLAY'),
+    head('02 DISPLAY · 表示'),
     h('div', { c: 'row' }, [
       btn(S.themeMode === 'auto' ? 'AUTO SUN' : (S.themeMode === 'light' ? 'LIGHT' : 'DARK'), function () {
         set({ themeMode: S.themeMode === 'auto' ? 'dark' : (S.themeMode === 'dark' ? 'light' : 'auto') }, true);
@@ -1468,7 +1468,7 @@ function renderTray() {
       { c: 'full', s: 'flex:none;width:100%;box-sizing:border-box' });
   }
   var s03 = sec(null, [
-    head('03 GREETING'),
+    head('03 GREETING · 挨拶'),
     btn(S.greetMode === 'time' ? 'BY TIME OF DAY' : 'ONE GREETING', function () {
       set({ greetMode: S.greetMode === 'time' ? 'static' : 'time' });
     }),
@@ -1559,7 +1559,7 @@ function renderTray() {
     (ec.links || []).map(buildLinkRow));
 
   var s06 = sec(null, [
-    head('06 PANELS'),
+    head('06 PANELS · パネル'),
     h('div', { c: 'row' }, [
       catSel,
       btn('＋', function () {
@@ -1657,7 +1657,7 @@ function renderTray() {
 
   /* 09 TAB */
   var s09 = sec(null, [
-    head('09 TAB'),
+    head('09 TAB · タブ'),
     h('div', { c: 'row' }, [
       field('tabtitle', S.tabTitle, function (e) { set({ tabTitle: e.target.value }, true); }),
       field('favglyph', S.favGlyph, function (e) { set({ favGlyph: e.target.value.slice(0, 2) }, true); },
@@ -1672,7 +1672,7 @@ function renderTray() {
   } });
   ta.value = S.cfgText;
   var s10 = sec(null, [
-    head('10 CONFIG'),
+    head('10 CONFIG · 設定'),
     ta,
     h('div', { c: 'row' }, [
       btn(S.cfgMsg === 'copied' ? 'COPIED' : 'EXPORT', function () {
