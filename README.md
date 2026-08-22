@@ -1,6 +1,6 @@
 # JP-STARTPAGE
 
-A browser startpage built around a Japanese terminal interface — vertical writing mode, DotGothic16, a fine graph-paper grid, and a single accent colour over near-black. It gave me an excuse to finally use `writing-mode: vertical-rl`, and to write a small solver that shrinks the type until every panel fits the same box height. The rule I set myself was one HTML file, no build step, no dependencies. It stayed that way.
+A browser startpage built around a Japanese terminal interface — vertical writing mode, DotGothic16, a fine graph-paper grid, and a single accent colour over near-black. It gave me an excuse to finally use `writing-mode: vertical-rl`, and to write a small solver that shrinks the type until every panel fits the same box height. The rule I set myself was no build step and no dependencies, and nothing loading from anywhere I do not control. The fonts are subset and served from the repo; the only network calls are the ones you switch on.
 
 Everything runs off the keyboard. Press a category key to open its panel, press a link key to follow it, press `/` to search.
 
@@ -24,6 +24,8 @@ You can use different Add-ons/Extensions for it
 
 - Firefox: [New Tab Override](https://addons.mozilla.org/en-US/firefox/addon/new-tab-override/)
 - Chromium: [Custom New Tab URL](https://chromewebstore.google.com/detail/custom-new-tab-url/mmjbdbjnoablegbkcklggeknkfcjkjia)
+
+Or load it as an extension for a real new tab: `chrome://extensions` or `about:debugging`, enable developer mode, and load this folder unpacked. `manifest.json` is already set up for it.
 
 Or just open `index.html` off your disk. Nothing leaves the browser either way.
 
