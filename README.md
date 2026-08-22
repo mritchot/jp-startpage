@@ -6,6 +6,8 @@ Everything runs off the keyboard. Press a category key to open its panel, press 
 
 Last Update: 22/08/26
 
+![startpage](images/preview.gif)
+
 [LIVE PREVIEW](https://mritchot.github.io/jp-startpage/)
 
 ## INSTALLATION INSTRUCTIONS
