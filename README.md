@@ -15,6 +15,7 @@ Last Update: 22/08/26
 This can run as a browser extension.
 
 **Firefox**
+
 Grab the signed `.xpi` from the [latest release](https://github.com/mritchot/jp-startpage/releases/latest). Opening that link in Firefox installs it straight away; if you have saved the file instead, drag it onto a Firefox window, or use `about:addons` → gear icon → *Install Add-on From File*.
 
 To run an unsigned copy in Firefox instead use `about:debugging` → *This Firefox* → *Load Temporary Add-on* and pick `manifest.json` after downloading this repo. Firefox drops temporary add-ons on restart, so the signed `.xpi` is preferred.
@@ -22,6 +23,7 @@ To run an unsigned copy in Firefox instead use `about:debugging` → *This Firef
 Needs Firefox 142 or later. It is self-distributed and will not auto-update itself.
 
 **Chrome**
+
 Go to `chrome://extensions`, turn on Developer mode, choose *Load unpacked*, and select this folder after downloading this repo.
 
 ### As a home page
@@ -46,33 +48,43 @@ Or just open `index.html` off your disk.
 Everything lives behind `設定 CONFIG` in the bottom right. It all persists to localStorage.
 
 **01 COLOUR · 色**
+
 Three accent presets and three ground presets. Each preset carries a light and a dark value, so picking one changes both modes. Under each row is a hex field: type six digits and it takes over from the presets. The hex only sets the mode you are currently looking at. The note under the fields tells you which mode you are editing.
 
 **02 DISPLAY · 表示**
+
 `SYSTEM` follows your operating system's light or dark setting, or force `LIGHT` / `DARK`. `GRID` toggles the grid texture. `24H` / `12H` sets the clock. `TEXT FITS BOX` shrinks type until it fits the box height; `BOX GROWS TO TEXT` does the reverse. `PANELS TOP` / `PANELS MID` moves the vertical labels and link lists; the clock always stays centred. `TEXT` scales type from 60% to 160%. `HEIGHT` sets box height from 200 to 760px. It shows `CAPPED` when the window is too short to honour it, and your setting is kept for when there is room again. `FAVICONS` shows a site icon beside each link; it is off by default because turning it on asks Google for an icon per domain.
 
 **03 GREETING · 挨拶**
+
 `ONE GREETING` for a fixed line, or `BY TIME OF DAY` for four that swap on the hours you set. The number is the hour that band starts. The active band is highlighted. Type size is fixed against the longest of them.
 
 **04 WEATHER · 天気**
+
 `MANUAL` looks up whatever city you type. `APPROX` places you by IP address, which asks no permission. `PRECISE` uses the browser's location, which will prompt. The `°C` / `°F` button converts. Data comes from Open-Meteo, refreshed every 30 minutes and cached between.
 
 **05 QUOTE · 引用**
+
 See the QUOTES section below.
 
 **06 PANELS · パネル**
+
 The dropdown picks which panel you are editing; `＋` adds one and `×` deletes it. Below that, the panel's name and its hotkey letter. The list underneath is that panel's links — drag the ⣿ handle to reorder, `×` on a row to remove it. The bottom row adds a link: label, hotkey, URL. The hotkey is highlighted inside the label as `/g/mail`, and leaving it blank uses the first letter. Panels themselves reorder by dragging them in the main rail.
 
 **07 IMAGE · 画像**
+
 `ADD IMAGE` opens a picker, or drop files straight onto the box. `‹` `›` step through, `×` removes the current one. Thumbnails jump to any image. `CROP` zooms from 100% to 400%, `FIT` resets it, and dragging inside the box repositions. `ROTATE` changes the image on every OPEN, hourly, daily, weekly, or never. Images are stored as data URLs in localStorage, so a handful of large ones will fill it.
 
 **08 SEARCH · 検索**
+
 The dropdown sets the default engine, and `SEARCH ON` / `OFF` controls whether `/` does anything. The field below adds your own engine: paste a search URL with `%s` where the query goes, like `https://example.com/search?q=%s`, and it appears in the list on prefix `c`.
 
 **09 TAB · タブ**
+
 The browser tab title.
 
 **10 CONFIG · 設定**
+
 `EXPORT` downloads your whole setup as a `.json` file. `IMPORT` loads one back. `RESET DEFAULTS` at the bottom wipes everything after confirming.
 
 ## THE TERMINAL LINE
