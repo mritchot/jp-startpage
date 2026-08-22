@@ -51,12 +51,10 @@ input,select,button,textarea{font-family:'IBM Plex Mono',ui-monospace,monospace}
   pointer-events:none}
 .cmd>*{pointer-events:auto}
 .cmd-p{font-size:11px;color:var(--accent)}
-.cmd-echo{position:absolute;left:20px;top:50%;transform:translateY(-50%);pointer-events:none;
-  font-family:'DotGothic16',monospace;font-size:14px;letter-spacing:7px;color:var(--accent);white-space:nowrap}
-.cmd-cur{width:8px;height:14px;background:var(--accent);display:block;animation:blink 1.06s steps(1) infinite}
-.cmd-in{width:240px;background:transparent;border:none;outline:none;font-family:'DotGothic16',monospace;font-size:15px;letter-spacing:2px;color:var(--fg);caret-color:var(--accent)}
-.cmd-eng{width:74px;flex:none;font-size:9px;letter-spacing:2.4px;color:var(--accent);white-space:nowrap}
-.cmd-slot{width:var(--cmdSlot,326px);flex:none;display:flex;align-items:center;gap:12px;position:relative}
+.cmd-line{font-family:'DotGothic16',monospace;font-size:14px;letter-spacing:2px;color:var(--accent);white-space:pre}
+.cmd-cur{width:8px;height:14px;flex:none;margin-left:2px;background:var(--accent);display:block;animation:blink 1.06s steps(1) infinite}
+.cmd-eng{width:var(--cmdEng,74px);flex:none;font-size:9px;letter-spacing:2.4px;color:var(--accent);white-space:nowrap;overflow:hidden}
+.cmd-slot{width:var(--cmdSlot,326px);flex:none;display:flex;align-items:center;overflow:hidden}
 .off{display:none!important}
 
 /* ---- rail ---- */
@@ -256,14 +254,14 @@ var SUN = { rise: 6.2, set: 19.8 };
  * ------------------------------------------------------------------ */
 function defaults() {
   return {
-    now: Date.now(), openId: null, trayOpen: false, echo: '', quoteIdx: 0,
+    now: Date.now(), openId: null, trayOpen: false, line: '', quoteIdx: 0,
     greeting: 'ターミナル接続確立：ハロー',
     city: 'TOKYO', unit: 'C', clock24: true,
     gistUrl: 'gist.github.com/username/gistid',
     editCatId: 'workspace', nl: '', nk: '', nu: '',
     textScale: 1, fitMode: 'fit', boxH: 320,
     align: 'center', imgs: [], imgIdx: 0, imgSched: 'day', quoteSched: 'day',
-    cmdOpen: false, query: '', engine: 'k', searchEnabled: true, linkIcons: false,
+    engine: 'k', searchEnabled: true, linkIcons: false,
     greetMode: 'static', themeMode: 'auto',
     greets: { morning: 'おはよう', afternoon: 'こんにちは', evening: 'こんばんは', night: 'おやすみ' },
     bands: { morning: 5, afternoon: 11, evening: 17, night: 22 },
@@ -486,7 +484,8 @@ function applySizing() {
   Sv('--tAlign', S.align === 'top' ? 'flex-start' : 'center');
   Sv('--clockJust', 'center');            /* the clock always centres */
   Sv('--tGap', px(14 * sc));
-  Sv('--cmdSlot', S.searchEnabled ? '326px' : '96px');
+  Sv('--cmdSlot', S.searchEnabled ? '326px' : '140px');
+  Sv('--cmdEng', S.searchEnabled ? '74px' : '0px');
   applyImage();
 }
 
@@ -708,39 +707,41 @@ function parseQuery(q) {
   return { eng: cur, term: String(q || '') };
 }
 
-function submitQuery() {
-  var r = parseQuery(S.query);
-  if (!r.term.trim()) return;
+/* the line is the whole command buffer; a leading slash means it is a query */
+function typing() { return S.line.charAt(0) === '/'; }
+function queryText() { return S.line.replace(/^\//, ''); }
+
+function submitLine() {
+  var r = parseQuery(queryText());
+  if (!r.term.trim()) { setState({ line: '' }); return; }
   window.open(r.eng.url + encodeURIComponent(r.term.trim()), '_blank', 'noopener');
-  setState({ cmdOpen: false, query: '' });
+  setState({ line: '' });
 }
 
 /* ------------------------------------------------------------------ *
  * keyboard
  * ------------------------------------------------------------------ */
-var echoTimer;
-function echoFlash(txt) {
-  clearTimeout(echoTimer);
-  S.echo = txt; paint();
-  echoTimer = setTimeout(function () { S.echo = ''; paint(); }, 1300);
-}
-
 function handleKey(e) {
   var tag = (e.target && e.target.tagName) || '';
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
   if (e.metaKey || e.ctrlKey || e.altKey) return;
 
+  /* once the line holds a slash every keystroke is text, not a shortcut */
+  if (typing()) {
+    if (e.key === 'Escape')    { e.preventDefault(); setState({ line: '' }); return; }
+    if (e.key === 'Enter')     { e.preventDefault(); submitLine(); return; }
+    if (e.key === 'Backspace') { e.preventDefault(); setState({ line: S.line.slice(0, -1) }); return; }
+    if (e.key.length === 1)    { e.preventDefault(); setState({ line: S.line + e.key }); return; }
+    return;
+  }
+
   if (e.key === 'Escape') {
-    if (S.cmdOpen) setState({ cmdOpen: false, query: '' });
-    else if (S.trayOpen) setState({ trayOpen: false });
-    else setState({ openId: null, echo: '' });
+    if (S.trayOpen) setState({ trayOpen: false });
+    else setState({ openId: null, line: '' });
     return;
   }
-  if (e.key === '/' && S.searchEnabled) {
-    e.preventDefault();
-    setState({ cmdOpen: true, query: '' }, function () { if (D.cmdIn) D.cmdIn.focus(); });
-    return;
-  }
+  if (e.key === '/' && S.searchEnabled) { e.preventDefault(); setState({ line: '/' }); return; }
+
   var k = (e.key || '').toLowerCase();
   if (k.length !== 1 || !/[a-z0-9]/.test(k)) return;
 
@@ -749,9 +750,8 @@ function handleKey(e) {
     var link = open.links.filter(function (l) { return (l.key || '').toLowerCase() === k; })[0];
     if (link) {
       e.preventDefault();
-      echoFlash(open.key.toUpperCase() + ' ' + k.toUpperCase() + ' ▸');
       window.open(link.url, '_blank', 'noopener');
-      setState({ openId: null });
+      setState({ openId: null, line: (open.key || '').toLowerCase() + ' ' + k + ' ▸' });
       return;
     }
   }
@@ -759,11 +759,19 @@ function handleKey(e) {
   if (cat) {
     e.preventDefault();
     var same = S.openId === cat.id;
-    setState({ openId: same ? null : cat.id });
-    echoFlash(same ? '' : k.toUpperCase());
+    setState({ openId: same ? null : cat.id, line: same ? '' : k });
   } else {
-    echoFlash('?');
+    setState({ line: '?' });
   }
+}
+
+function handlePaste(e) {
+  if (!typing()) return;
+  var cd = e.clipboardData || window.clipboardData;
+  var t = cd ? (cd.getData('text') || '') : '';
+  if (!t) return;
+  e.preventDefault();
+  setState({ line: S.line + t.replace(/[\r\n]+/g, ' ') });
 }
 
 /* ------------------------------------------------------------------ *
@@ -880,20 +888,12 @@ function buildShell() {
     D.wxHilo
   ]);
 
-  D.cmdP    = h('span', { c: 'cmd-p' });
-  D.cmdEcho = h('span', { c: 'cmd-echo' });
+  D.cmdP    = h('span', { c: 'cmd-p', t: '>' });
+  D.cmdLine = h('span', { c: 'cmd-line' });
   D.cmdCur  = h('span', { c: 'cmd-cur' });
-  D.cmdIn   = h('input', { c: 'cmd-in', a: { placeholder: 'search' }, on: {
-    input:   function (e) { S.query = e.target.value; paint(); },
-    keydown: function (e) {
-      if (e.key === 'Enter')  { e.preventDefault(); submitQuery(); }
-      if (e.key === 'Escape') { e.preventDefault(); setState({ cmdOpen: false, query: '' }); }
-    },
-    blur: function () { setState({ cmdOpen: false }); }
-  } });
   D.cmdEng  = h('span', { c: 'cmd-eng' });
-  D.cmdSlot = h('div', { c: 'cmd-slot' }, [D.cmdEcho, D.cmdCur, D.cmdIn, D.cmdEng]);
-  D.cmd = h('div', { c: 'cmd' }, [D.cmdP, D.cmdSlot]);
+  D.cmdSlot = h('div', { c: 'cmd-slot' }, [D.cmdLine, D.cmdCur]);
+  D.cmd = h('div', { c: 'cmd' }, [D.cmdP, D.cmdSlot, D.cmdEng]);
 
   D.cDate = h('div', { c: 'vt c-date' });
   D.cWk   = h('div', { c: 'vt c-wk' });
@@ -988,14 +988,10 @@ function paint() {
   D.greetT.textContent = g;
   if (g !== _lastGreet) { _lastGreet = g; applySizing(); }
 
-  D.cmdP.textContent = S.cmdOpen ? '/' : '>';
-  D.cmdEcho.textContent = S.echo;
-  D.cmdEng.textContent = parseQuery(S.query).eng.name;
-  D.cmdEcho.classList.toggle('off', S.cmdOpen);
-  D.cmdCur.classList.toggle('off', S.cmdOpen);
-  D.cmdIn.classList.toggle('off', !S.cmdOpen);
-  D.cmdEng.classList.toggle('off', !S.cmdOpen);
-  if (D.cmdIn.value !== S.query && document.activeElement !== D.cmdIn) D.cmdIn.value = S.query;
+  D.cmdLine.textContent = S.line;
+  D.cmdEng.textContent = typing() ? parseQuery(queryText()).eng.name : '';
+  /* keep the cursor in view once the line runs past the slot */
+  D.cmdSlot.scrollLeft = D.cmdSlot.scrollWidth;
 
   D.imgMeta.textContent = _storeWarn || (S.imgs.length
     ? p(S.imgIdx + 1) + '/' + p(S.imgs.length) + ' · ' +
@@ -1041,7 +1037,7 @@ function buildCat(c) {
       ]);
 
   var tab = h('div', { c: 'box tab' + (isOpen ? ' on' : ''), btn: 1, al: c.name, on: { click: function () {
-    setState({ openId: S.openId === c.id ? null : c.id, echo: '' });
+    setState({ openId: S.openId === c.id ? null : c.id, line: '' });
   } } }, tabT);
 
   var kids = [tab];
@@ -1592,6 +1588,7 @@ function boot() {
   fetchWeather();
 
   window.addEventListener('keydown', handleKey);
+  window.addEventListener('paste', handlePaste);
 
   setInterval(function () {
     S.now = Date.now();
