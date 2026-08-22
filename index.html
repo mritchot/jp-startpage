@@ -285,6 +285,7 @@ function defaults() {
     greeting: 'ターミナル接続確立：ハロー',
     city: 'TOKYO', geoMode: 'manual', unit: 'C', clock24: true,
     gistUrl: '', quoteSource: 'builtin', quoteCustom: '',
+    gistToken: '', gistId: '', syncAt: 0,
     editCatId: 'workspace', nl: '', nk: '', nu: '',
     textScale: 1, fitMode: 'fit', boxH: 320,
     align: 'center', imgs: [], imgIdx: 0, imgSched: 'day', quoteSched: 'day',
@@ -391,7 +392,8 @@ function persist() {
       align: S.align, imgIdx: S.imgIdx, imgSched: S.imgSched, quoteSched: S.quoteSched,
       engine: S.engine, engineCustom: S.engineCustom, searchEnabled: S.searchEnabled, linkIcons: S.linkIcons,
       greetMode: S.greetMode, greets: S.greets, bands: S.bands, themeMode: S.themeMode,
-      tabTitle: S.tabTitle
+      tabTitle: S.tabTitle,
+      gistToken: S.gistToken, gistId: S.gistId, syncAt: S.syncAt
     }));
   } catch (e) {}
 }
@@ -403,7 +405,7 @@ function exportable() {
     theme: S.theme, themeMode: S.themeMode, align: S.align,
     textScale: S.textScale, fitMode: S.fitMode, boxH: S.boxH,
     engine: S.engine, engineCustom: S.engineCustom, searchEnabled: S.searchEnabled, linkIcons: S.linkIcons,
-    tabTitle: S.tabTitle, imgSched: S.imgSched,
+    tabTitle: S.tabTitle, imgSched: S.imgSched, gistId: S.gistId,
     quoteSched: S.quoteSched, cats: S.cats
   };
 }
@@ -801,6 +803,93 @@ function fetchWeather(force) {
       return forecastAt(p.latitude, p.longitude, city.toUpperCase(), key);
     })
     .catch(quiet);
+}
+
+/* ------------------------------------------------------------------ *
+ * gist sync
+ *
+ * A classic GitHub token with the `gist` scope, kept in this browser's
+ * localStorage. It is deliberately absent from exportable(), so neither the
+ * clipboard export nor the synced payload can ever carry it.
+ * ------------------------------------------------------------------ */
+var SYNC_FILE = 'jp-startpage.json';
+var _syncMsg = '';
+var _syncTimer;
+
+function syncFlash(m, hold) {
+  clearTimeout(_syncTimer);
+  _syncMsg = m;
+  if (S.trayOpen) renderTray();
+  if (hold !== false) {
+    _syncTimer = setTimeout(function () { _syncMsg = ''; if (S.trayOpen) renderTray(); }, 2200);
+  }
+}
+
+function gistHeaders() {
+  return {
+    'Authorization': 'Bearer ' + String(S.gistToken || '').trim(),
+    'Accept': 'application/vnd.github+json',
+    'Content-Type': 'application/json'
+  };
+}
+
+function syncErr(status) {
+  if (status === 401) return 'BAD TOKEN';
+  if (status === 403) return 'FORBIDDEN';
+  if (status === 404) return 'GIST NOT FOUND';
+  return 'FAILED';
+}
+
+function syncPush() {
+  if (!String(S.gistToken || '').trim()) { syncFlash('NO TOKEN'); return; }
+  var id = String(S.gistId || '').trim();
+  var body = { description: 'jp-startpage config', files: {} };
+  body.files[SYNC_FILE] = { content: JSON.stringify(exportable(), null, 1) };
+  if (!id) body.public = false;          /* secret gist on first push */
+  syncFlash('···', false);
+  fetch(id ? 'https://api.github.com/gists/' + id : 'https://api.github.com/gists',
+        { method: id ? 'PATCH' : 'POST', headers: gistHeaders(), body: JSON.stringify(body) })
+    .then(function (r) { if (!r.ok) throw r.status; return r.json(); })
+    .then(function (j) {
+      S.gistId = j.id || id;
+      S.syncAt = Date.now();
+      persist();
+      syncFlash('PUSHED');
+    })
+    .catch(function (e) { syncFlash(syncErr(e)); });
+}
+
+function syncPull() {
+  if (!String(S.gistToken || '').trim()) { syncFlash('NO TOKEN'); return; }
+  var id = String(S.gistId || '').trim();
+  if (!id) { syncFlash('NO GIST ID'); return; }
+  syncFlash('···', false);
+  fetch('https://api.github.com/gists/' + id, { headers: gistHeaders(), cache: 'no-store' })
+    .then(function (r) { if (!r.ok) throw r.status; return r.json(); })
+    .then(function (j) {
+      var f = j.files && j.files[SYNC_FILE];
+      if (!f || !f.content) throw 404;
+      var o = JSON.parse(f.content);
+      if (!o || typeof o !== 'object' || Array.isArray(o)) throw 0;
+      delete o.gistToken;                /* a payload must never set the token */
+      delete o.syncAt;
+      Object.assign(S, o);
+      S.syncAt = Date.now();
+      applyQuotes();
+      applyTheme();
+      render();
+      persist();
+      fetchWeather(true);
+      syncFlash('PULLED');
+    })
+    .catch(function (e) { syncFlash(syncErr(e)); });
+}
+
+function syncStamp() {
+  if (!S.syncAt) return 'NEVER SYNCED';
+  var d = new Date(S.syncAt), p = function (n) { return String(n).padStart(2, '0'); };
+  return 'LAST SYNC ' + d.getFullYear() + '.' + p(d.getMonth() + 1) + '.' + p(d.getDate()) +
+         ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
 }
 
 /* ------------------------------------------------------------------ *
@@ -1699,6 +1788,29 @@ function renderTray() {
     ])
   ]);
 
+  /* 11 SYNC */
+  var tokenField = h('input', {
+    c: 'in tiny', a: { 'data-k': 'gtoken', type: 'password', spellcheck: 'false',
+                       placeholder: 'github token, gist scope' },
+    on: { input: function (e) { S.gistToken = e.target.value; persist(); } }
+  });
+  tokenField.value = S.gistToken || '';
+
+  var s11 = sec(null, [
+    head('11 SYNC · 同期'),
+    h('div', { c: 'row' }, [tokenField]),
+    h('div', { c: 'row' }, [
+      field('gid', S.gistId, function (e) { set({ gistId: e.target.value.trim() }); },
+        { c: 'tiny', ph: 'gist id (filled on first push)' })
+    ]),
+    h('div', { c: 'row' }, [
+      btn('PUSH', syncPush, { f: 1 }),
+      btn('PULL', syncPull, { f: 1 })
+    ]),
+    note(_syncMsg || syncStamp()),
+    note('TOKEN STAYS IN THIS BROWSER · NEVER LEAVES IN AN EXPORT')
+  ]);
+
   var foot = h('div', { c: 'foot' }, [
     h('span', { t: 'ESC TO CLOSE' }),
     h('span', { c: 'reset', t: 'RESET DEFAULTS', btn: 1, on: { click: function () {
@@ -1708,7 +1820,7 @@ function renderTray() {
     } } })
   ]);
 
-  D.tray = h('div', { c: 'tray' }, [s01, s02, s03, s04, s05, s06, s07, s08, s09, s10, foot]);
+  D.tray = h('div', { c: 'tray' }, [s01, s02, s03, s04, s05, s06, s07, s08, s09, s10, s11, foot]);
   D.trayHost.appendChild(D.tray);
   D.tray.scrollTop = scrolled;   /* a rebuild must not throw the reader back to the top */
   restoreFocus(focus);

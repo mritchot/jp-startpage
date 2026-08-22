@@ -81,6 +81,23 @@ ROTATE sets how often the quote changes on its own: every OPEN, hourly, daily, w
 
 The line format is the same one [Bonjourr](https://bonjourr.fr/docs/widgets/quotes/) uses, so a quotes file written for either works in both.
 
+## SYNC
+
+Each browser keeps its own settings, because localStorage is per-browser by definition. `11 SYNC` moves a setup between them through a secret GitHub Gist.
+
+Make a [classic personal access token](https://github.com/settings/tokens) with **only** the `gist` scope, give it an expiry, and paste it into the token field. Then:
+
+- **PUSH** writes your current setup to a gist. The first push creates a secret one and fills in the gist ID.
+- **PULL** reads that gist back and applies it.
+
+On the second browser, paste the same token and the same gist ID, then PULL.
+
+It is last-write-wins — PUSH overwrites the gist, PULL overwrites what is local. The line above the buttons shows when this browser last synced.
+
+Two things stay behind. **The token never leaves the browser you typed it into**: it is excluded from the synced payload and from the `10 CONFIG` export, so sharing a config cannot leak it. And **dropped images do not sync**, since they are data URLs living in a separate localStorage key.
+
+The token is stored in plain localStorage, which anyone with access to that browser profile can read. Use a short expiry, and scope it to `gist` and nothing else.
+
 ## DETAILS
 
 - Fonts are [DotGothic16](https://fonts.google.com/specimen/DotGothic16) and [IBM Plex Mono](https://fonts.google.com/specimen/IBM+Plex+Mono) from Google Fonts. They are the only remote asset.
