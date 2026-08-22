@@ -21,7 +21,7 @@ input,select,button,textarea{font-family:'IBM Plex Mono',ui-monospace,monospace}
   --bg:#12100d;--panel:rgba(214,201,173,.032);--panelHi:rgba(214,201,173,.075);
   --line:rgba(190,178,152,.17);--fg:#9c9585;--dim:rgba(156,149,133,.46);
   --accent:#d4cdb8;--accent2:#c1503c;
-  --boxHc:min(var(--boxH,320px),calc(100vh - 300px));
+  --boxHc:max(140px,min(var(--boxH,320px),calc(100vh - 230px)));
   position:relative;min-height:100vh;background:var(--bg);color:var(--fg);
   font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px;overflow:hidden
 }
@@ -188,9 +188,10 @@ input,select,button,textarea{font-family:'IBM Plex Mono',ui-monospace,monospace}
    cluster runs out of room. The weather block is the tallest thing down there
    and the most expendable; config stays, or settings become unreachable.
    Must come after the width query so it wins on .cmd bottom. */
-@media (max-height:520px){
+@media (max-height:560px){
   .wx{display:none}
   .cmd{bottom:36px}
+  #root{--boxHc:max(140px,min(var(--boxH,320px),calc(100vh - 170px)))}
 }
 </style>
 </head>
@@ -489,9 +490,10 @@ function computeSizing() {
      and bottom for the quote and the weather/terminal cluster. S.boxH keeps the
      user's preference untouched; only the applied height is clamped, so a tall
      setting still applies in full on a taller display. */
-  var maxH = Math.max(180, (window.innerHeight || 800) - 300);
-  var sc = S.textScale, H = Math.min(Math.max(180, S.boxH), maxH);
-  var capped = Math.max(180, S.boxH) > maxH;
+  var short = (window.innerHeight || 800) <= 560;
+  var maxH = Math.max(140, (window.innerHeight || 800) - (short ? 170 : 230));
+  var sc = S.textScale, H = Math.min(Math.max(140, S.boxH), maxH);
+  var capped = Math.max(140, S.boxH) > maxH;
   if (S.fitMode !== 'fit') {
     H = Math.max(H, Math.ceil(need(sc)));
     if (H > maxH) { H = maxH; capped = true; }
