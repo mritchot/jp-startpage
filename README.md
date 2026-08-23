@@ -4,7 +4,7 @@ A browser startpage designed as a pseudo-Japanese terminal interface.
 
 Has full keyboard input. Press a category key to open its panel, press a link key to follow it, press `/` to search.
 
-Last Update: 22/08/26
+Last Update: 24/08/26
 
 [LIVE PREVIEW](https://mritchot.github.io/jp-startpage/)
 
@@ -24,7 +24,11 @@ Needs Firefox 142 or later. It is self-distributed and will not auto-update itse
 
 **Chrome**
 
-Go to `chrome://extensions`, turn on Developer mode, choose *Load unpacked*, and select this folder after downloading this repo.
+Install from the [Chrome Web Store](https://chromewebstore.google.com/detail/jp-startpage/njhkdmembkbbcagahaiknbdfomnloaio).
+
+To run an unpacked copy instead go to `chrome://extensions`, turn on Developer mode, choose *Load unpacked*, and select this folder after downloading this repo.
+
+Unlike the Firefox build, the Web Store version updates itself.
 
 ### As a home page
 
