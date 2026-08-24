@@ -142,6 +142,7 @@ input,select,button,textarea{font-family:'IBM Plex Mono',ui-monospace,monospace}
 .in:focus{border-color:var(--accent)}
 .in.tiny{font-size:11px;padding:8px}
 .in.key{width:44px;flex:none;color:var(--accent);text-align:center;padding:9px}
+.in.bad{border-color:var(--accent2)}
 .sel{flex:1;min-width:0;background:var(--bg);border:1px solid var(--line);color:var(--fg);font-size:11px;padding:9px 8px;outline:none}
 .hexrow{display:flex;align-items:center;gap:8px}
 .hexrow .hash{font-size:11px;color:var(--dim);width:62px;flex:none;text-align:right;padding-right:2px}
@@ -156,8 +157,13 @@ input,select,button,textarea{font-family:'IBM Plex Mono',ui-monospace,monospace}
 .band{font-size:9px;letter-spacing:1.6px;width:34px;flex:none}
 .lrow{display:flex;align-items:center;gap:9px;padding:7px 9px;background:var(--panel);border:1px solid transparent;cursor:grab}
 .lrow:hover{background:var(--panelHi)}
+.lrow.edit{flex-direction:column;align-items:stretch;gap:6px;cursor:default;background:var(--panelHi);border-color:var(--accent)}
+.lrow.edit:hover{background:var(--panelHi)}
+.lrow .erow{display:flex;align-items:center;gap:6px}
+.lmid{display:flex;align-items:center;gap:9px;flex:1;min-width:0;cursor:pointer}
 .lrow .grip{font-size:10px;color:var(--dim)}
 .lrow .k{font-size:11px;color:var(--accent);width:12px;text-align:center;flex:none}
+.lrow .k.dup{color:var(--accent2)}
 .lrow .nm{font-size:11px;color:var(--fg);width:88px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lrow .hs{font-size:10px;color:var(--dim);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lrow .rm{font-size:12px;color:var(--dim);cursor:pointer;padding:0 3px}

@@ -85,7 +85,7 @@ function defaults() {
     city: 'TOKYO', geoMode: 'manual', unit: 'C', clock24: true,
     gistUrl: '', quoteSource: 'builtin', quoteCustom: '',
     gistToken: '', gistId: '', syncAt: 0,
-    editCatId: 'workspace', nl: '', nk: '', nu: '',
+    editCatId: 'workspace', editLinkIdx: null, nl: '', nk: '', nu: '',
     textScale: 1, fitMode: 'fit', boxH: 320,
     align: 'top', imgs: [], imgIdx: 0, imgSched: 'day', quoteSched: 'day',
     engine: 'k', engineCustom: '', searchEnabled: true, linkIcons: false,
@@ -634,6 +634,26 @@ function safeUrl(raw) {
   return /^https?:/i.test(u) ? u : 'https://' + u;
 }
 
+/* A URL under the cursor is half-typed, so it cannot be normalised on every
+   keystroke. This only strips the schemes that would execute; safeUrl() adds
+   the https:// when the edit closes, and every use site calls it anyway. */
+function liveUrl(raw) {
+  var u = String(raw == null ? '' : raw);
+  return /^\s*(javascript|data|vbscript|file)\s*:/i.test(u) ? '' : u;
+}
+
+/* keys claimed by more than one entry in the same list — first match wins at
+   the keyboard, so the loser needs to be visible in the tray */
+function dupeKeys(list) {
+  var seen = {}, dupe = {};
+  (list || []).forEach(function (x) {
+    var k = String(x && x.key || '').toLowerCase();
+    if (!k) return;
+    if (seen[k]) dupe[k] = true; else seen[k] = true;
+  });
+  return dupe;
+}
+
 function sanitizeCats(cats) {
   if (!Array.isArray(cats)) return null;
   var out = cats.filter(function (c) { return c && typeof c === 'object'; })
@@ -831,7 +851,7 @@ function handleKey(e) {
     var link = open.links.filter(function (l) { return (l.key || '').toLowerCase() === k; })[0];
     if (link) {
       e.preventDefault();
-      location.href = link.url;
+      location.href = safeUrl(link.url);
       setState({ openId: null, line: (open.key || '').toLowerCase() + ' ' + k + ' ▸' });
       return;
     }
@@ -1152,7 +1172,7 @@ function buildCat(c) {
     kids.push(h('div', { c: 'pane' }, c.links.map(function (l) {
       var lm = mark(l.label, l.key);
       var icon = faviconFor(l.url);
-      return h('a', { c: 'lnk', a: { href: l.url, rel: 'noreferrer' } }, [
+      return h('a', { c: 'lnk', a: { href: safeUrl(l.url), rel: 'noreferrer' } }, [
         icon ? h('img', { a: { src: icon, alt: '' } }) : null,
         h('span', {}, [
           lm.pre, h('span', { c: 'sl', t: '/' }), h('span', { c: 'hk', t: lm.k }),
@@ -1215,10 +1235,12 @@ function stp(label, fn, warn, al) {
 }
 function field(key, value, fn, opt) {
   opt = opt || {};
+  var on = { input: fn };
+  if (opt.on) Object.keys(opt.on).forEach(function (k) { on[k] = opt.on[k]; });
   var e = h('input', {
     c: 'in' + (opt.c ? ' ' + opt.c : ''), s: opt.s || null,
     a: { 'data-k': key, maxlength: opt.max || null, placeholder: opt.ph || null },
-    on: { input: fn }
+    on: on
   });
   e.value = value == null ? '' : value;
   return e;
@@ -1314,7 +1336,57 @@ function reflowLinks() {
   playFlip();
 }
 
-function buildLinkRow(l) {
+/* The stored URL is left exactly as typed while a row is open, so the field
+   does not fight the cursor. safeUrl() lands when the row closes. */
+function normalizedLinks(i) {
+  var links = editCat().links || [];
+  if (i == null || !links[i]) return null;
+  var norm = safeUrl(links[i].url);
+  if (norm === links[i].url) return null;
+  return links.map(function (x, j) { return j === i ? Object.assign({}, x, { url: norm }) : x; });
+}
+function setLinkEdit(next) {
+  var fixed = normalizedLinks(S.editLinkIdx);
+  S.editLinkIdx = next;
+  if (fixed) updateCat({ links: fixed }); else set({});
+}
+function openLinkEdit(i) { setLinkEdit(S.editLinkIdx === i ? null : i); }
+function closeLinkEdit() { setLinkEdit(null); }
+
+function patchLink(i, o) {
+  updateCat({ links: (editCat().links || []).map(function (x, j) {
+    return j === i ? Object.assign({}, x, o) : x;
+  }) });
+}
+
+/* label, hotkey and URL, edited in place. Drag is off while a row is open:
+   the row is no longer draggable, so the pointer belongs to the fields. */
+function buildLinkEdit(l, i, dupe) {
+  var commit = { keydown: function (e) { if (e.key === 'Enter') { e.preventDefault(); closeLinkEdit(); } } };
+  var keyIn = field('el-k', l.key, function (e) {
+    patchLink(i, { key: e.target.value.slice(0, 1).toLowerCase() });
+  }, { c: 'tiny' + (dupe[String(l.key || '').toLowerCase()] ? ' bad' : ''), max: '1',
+       s: 'width:34px;flex:none;color:var(--accent);text-align:center;padding:8px 4px', on: commit });
+  var labIn = field('el-l', l.label, function (e) {
+    patchLink(i, { label: e.target.value });
+  }, { c: 'tiny', ph: 'label', on: commit });
+  var urlIn = field('el-u', l.url === '#' ? '' : l.url, function (e) {
+    patchLink(i, { url: liveUrl(e.target.value) });
+  }, { c: 'tiny', ph: 'url', on: commit });
+
+  return h('div', { c: 'lrow edit', a: { 'data-lid': linkKey(l) } }, [
+    h('div', { c: 'erow' }, [
+      keyIn, labIn,
+      h('div', { c: 'stp', t: '✓', btn: 1, al: 'Done editing', on: { click: closeLinkEdit } })
+    ]),
+    h('div', { c: 'erow' }, [urlIn])
+  ]);
+}
+
+function buildLinkRow(l, i) {
+  var dupe = dupeKeys(editCat().links);
+  if (S.editLinkIdx === i) return buildLinkEdit(l, i, dupe);
+
   var lid = linkKey(l);
   var node = h('div', {
     c: 'lrow', s: 'opacity:' + (S.dragLid === lid ? '.34' : '1'),
@@ -1333,11 +1405,19 @@ function buildLinkRow(l) {
     }
   }, [
     h('span', { c: 'grip', t: '⣿' }),
-    h('span', { c: 'k', t: l.key }),
-    h('span', { c: 'nm', t: l.label }),
-    h('span', { c: 'hs', t: String(l.url).replace(/^https?:\/\//, '').split('/')[0] }),
-    h('span', { c: 'rm', t: '×', btn: 1, al: 'Remove ' + (l.label || 'link'), on: { click: function () {
+    /* one focusable target for the whole middle: a drag suppresses the click,
+       so grabbing the row to reorder never opens the editor */
+    h('div', { c: 'lmid', btn: 1, al: 'Edit ' + (l.label || 'link'), on: { click: function () {
+      openLinkEdit(linkIndex(node));
+    } } }, [
+      h('span', { c: 'k' + (dupe[String(l.key || '').toLowerCase()] ? ' dup' : ''), t: l.key }),
+      h('span', { c: 'nm', t: l.label }),
+      h('span', { c: 'hs', t: String(l.url).replace(/^https?:\/\//, '').split('/')[0] })
+    ]),
+    h('span', { c: 'rm', t: '×', btn: 1, al: 'Remove ' + (l.label || 'link'), on: { click: function (e) {
+      e.stopPropagation();
       var i = linkIndex(node), cur = editCat().links || [];
+      S.editLinkIdx = null;
       updateCat({ links: cur.filter(function (_, j) { return j !== i; }) });
     } } })
   ]);
@@ -1530,7 +1610,12 @@ function renderTray() {
 
   /* 06 PANELS */
   var catSel = h('select', { c: 'sel', a: { 'data-k': 'catsel' }, on: {
-    change: function (e) { setState({ editCatId: e.target.value }); }
+    change: function (e) {
+      var fixed = normalizedLinks(S.editLinkIdx);
+      S.editLinkIdx = null;
+      if (fixed) updateCat({ links: fixed });
+      setState({ editCatId: e.target.value });
+    }
   } }, S.cats.map(function (c) {
     return h('option', { t: c.name, a: { value: c.id } });
   }));
@@ -1545,19 +1630,23 @@ function renderTray() {
       catSel,
       btn('＋', function () {
         var id = 'cat' + Date.now();
+        S.editLinkIdx = null;
         set({ cats: S.cats.concat([{ id: id, name: 'new panel', key: 'n', links: [] }]), editCatId: id });
       }, { al: 'Add panel', s: 'width:44px;flex:none;font-size:11px;letter-spacing:0' }),
       btn('×', function () {
         if (S.cats.length <= 1) return;
         var rest = S.cats.filter(function (c) { return c.id !== S.editCatId; });
+        S.editLinkIdx = null;
         set({ cats: rest, editCatId: rest[0].id, openId: null });
       }, { warn: 1, al: 'Delete panel', s: 'width:44px;flex:none;font-size:11px;letter-spacing:0' })
     ]),
     h('div', { c: 'row' }, [
       field('catname', ec.name, function (e) { updateCat({ name: e.target.value }); }),
-      field('catkey', ec.key, function (e) { updateCat({ key: e.target.value.slice(0, 1).toLowerCase() }); }, { c: 'key', max: '1' })
+      field('catkey', ec.key, function (e) { updateCat({ key: e.target.value.slice(0, 1).toLowerCase() }); },
+        { c: 'key' + (dupeKeys(S.cats)[String(ec.key || '').toLowerCase()] ? ' bad' : ''), max: '1' })
     ]),
     D.linksBox,
+    (ec.links || []).length ? note('CLICK A ROW TO EDIT · DRAG TO REORDER') : null,
     h('div', { s: 'display:flex;gap:6px;margin-top:4px' }, [
       field('nl', S.nl, function (e) { setState({ nl: e.target.value }); }, { c: 'tiny', ph: 'label' }),
       field('nk', S.nk, function (e) { setState({ nk: e.target.value.slice(0, 1).toLowerCase() }); },
