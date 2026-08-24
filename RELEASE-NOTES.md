@@ -14,6 +14,8 @@ Paste-ready body for the GitHub release. Replaced at each release.
 
 **A quieter config tray.** The tray no longer explains itself. Every instruction has moved to the README, which now documents each control and every status line the tray can show. What remains on screen is live status only.
 
+**PRECISE weather works on Chrome.** It silently did nothing in 1.0.x: Chrome requires an extension to hold the geolocation permission before the browser will share a position. Picking `PRECISE` now asks for that permission once, and a refusal shows `NO LOCATION` instead of `LOCATING…` forever. Coordinates are rounded to about a kilometer before they are sent to the forecast service.
+
 ---
 
 ## Install
@@ -37,7 +39,7 @@ Needs Firefox 142 or later.
 The Chrome build runs on Edge, Brave and Vivaldi. Each needs one thing set first, and Opera cannot run it as a new tab at all.
 
 - **Edge** — open the Chrome Web Store listing and accept *Allow extensions from other stores* when Edge offers it. The new tab override then works.
-- **Brave** — installs from the Chrome Web Store and honours the new tab override.
+- **Brave** — installs from the Chrome Web Store and honors the new tab override.
 - **Vivaldi** — installs from the Chrome Web Store, then tick *Settings → Tabs → New Tab Page → Start Page → Controlled by Extension*. Vivaldi sometimes shows its own Start Page again after a full restart.
 - **Opera** — ignores the new tab override entirely. Point Opera's startup page at the [live preview](https://mritchot.github.io/jp-startpage/) instead.
 
@@ -53,4 +55,4 @@ Chrome needs you signed in with sync on. Firefox needs a Firefox Account with **
 
 The browser caps this storage at 100 KB. A setup past that reports `TOO LARGE TO SYNC` and writes nothing. Dropped images are never included, on either sync path.
 
-This release adds the `storage` permission, which both browsers grant without a prompt.
+This release adds the `storage` permission, which both browsers grant without a prompt, and an optional `geolocation` permission that Chrome asks about only if you pick `PRECISE` weather.
