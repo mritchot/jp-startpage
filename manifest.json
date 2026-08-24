@@ -3,6 +3,9 @@
   "name": "JP-Startpage",
   "version": "1.0.1",
   "description": "Keyboard-driven browser startpage with a Japanese terminal aesthetic.",
+  "permissions": [
+    "storage"
+  ],
   "icons": {
     "16": "icons/icon-16.png",
     "48": "icons/icon-48.png",

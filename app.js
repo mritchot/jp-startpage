@@ -85,6 +85,7 @@ function defaults() {
     city: 'TOKYO', geoMode: 'manual', unit: 'C', clock24: true,
     gistUrl: '', quoteSource: 'builtin', quoteCustom: '',
     gistToken: '', gistId: '', syncAt: 0,
+    syncTab: 'profile', profileSync: false, profileAt: 0,
     editCatId: 'workspace', editLinkIdx: null, nl: '', nk: '', nu: '',
     textScale: 1, fitMode: 'fit', boxH: 320,
     align: 'top', imgs: [], imgIdx: 0, imgSched: 'day', quoteSched: 'day',
@@ -193,9 +194,11 @@ function persist() {
       engine: S.engine, engineCustom: S.engineCustom, searchEnabled: S.searchEnabled, linkIcons: S.linkIcons,
       greetMode: S.greetMode, greets: S.greets, bands: S.bands, themeMode: S.themeMode,
       tabTitle: S.tabTitle,
-      gistToken: S.gistToken, gistId: S.gistId, syncAt: S.syncAt
+      gistToken: S.gistToken, gistId: S.gistId, syncAt: S.syncAt,
+      syncTab: S.syncTab, profileSync: S.profileSync, profileAt: S.profileAt
     }));
   } catch (e) {}
+  if (typeof psQueue === 'function') psQueue();
 }
 function exportable() {
   return {
@@ -737,6 +740,225 @@ function cfgImportFile(file) {
   };
   r.onerror = function () { cfgFlash('FAILED'); };
   r.readAsText(file);
+}
+
+/* ------------------------------------------------------------------ *
+ * profile sync
+ *
+ * The browser's own extension storage, which Chrome and Firefox replicate
+ * across a signed-in profile. Same payload as the gist path, so the token and
+ * the gist id are excluded by construction. Images stay out: they are data
+ * URLs in a separate key and would blow the quota on the first write.
+ *
+ * Both browsers cap an item at 8,192 bytes and the whole area at 102,400, so
+ * the payload is sliced across numbered items. Chrome also rate-limits writes
+ * to 120 a minute, which the debounce below stays well clear of.
+ * ------------------------------------------------------------------ */
+/* 4000 raw characters cannot exceed the 8,192-byte per-item cap even if every
+   one of them were a quote mark that JSON escaping doubles. */
+var PS_CHUNK = 4000;
+var PS_MAX = 100000;
+var PS_DEBOUNCE = 2500;
+var PS_ECHO = 5000;
+var _psWrite, _psRev = '', _psAt = 0, _psMsg = '';
+
+/* True while a payload from the profile is being applied, and while a push
+   records its own result. Both write to localStorage, and persist() is what
+   queues a push — without this, a push would schedule the next one forever. */
+var _psApplying = false;
+function psQuiet(fn) {
+  _psApplying = true;
+  try { fn(); } finally { _psApplying = false; }
+}
+
+function psApi() {
+  try {
+    /* chrome first: Firefox exposes both, and only the chrome namespace takes
+       the callback form. The browser namespace returns a promise and drops the
+       callback on the floor, which would hang every call made through it. */
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) return chrome;
+    if (typeof browser !== 'undefined' && browser.storage && browser.storage.sync) return browser;
+  } catch (e) {}
+  return null;
+}
+function psArea() { var a = psApi(); return a ? a.storage.sync : null; }
+function psAvailable() { return !!psArea(); }
+
+/* Whichever flavour answers first wins, so the same call works against a
+   callback API and a promise-returning one without firing the handler twice. */
+function psOnce(cb) {
+  var spent = false;
+  return function (v) { if (spent) return; spent = true; cb(v); };
+}
+function psDo(method, arg, cb) {
+  var a = psArea();
+  var one = psOnce(cb || function () {});
+  if (!a) { one(null); return; }
+  try {
+    var r = a[method](arg, function (v) {
+      var api = psApi();
+      var err = api && api.runtime && api.runtime.lastError;
+      one(err ? null : (v === undefined ? true : v));
+    });
+    if (r && typeof r.then === 'function') {
+      r.then(function (v) { one(v === undefined ? true : v); }, function () { one(null); });
+    }
+  } catch (e) { one(null); }
+}
+
+/* what the browsers actually charge for: the key plus the stringified value */
+function psBytes(obj) {
+  var t = 0;
+  Object.keys(obj).forEach(function (k) { t += k.length + JSON.stringify(obj[k]).length; });
+  return t;
+}
+
+function psFlash(m, hold) {
+  _psMsg = m;
+  if (S.trayOpen) renderTray();
+  if (hold !== false) setTimeout(function () {
+    if (_psMsg === m) { _psMsg = ''; if (S.trayOpen) renderTray(); }
+  }, 2200);
+}
+
+/* callback style throughout: Firefox returns promises, Chrome takes callbacks,
+   and the callback form is the one both accept */
+function psGet(cb) {
+  psDo('get', null, function (all) { cb(all && typeof all === 'object' ? all : null); });
+}
+
+function psUnpack(all) {
+  if (!all || !all.pmeta || !all.pmeta.n) return null;
+  var raw = '';
+  for (var i = 0; i < all.pmeta.n; i++) {
+    if (typeof all['p' + i] !== 'string') return null;
+    raw += all['p' + i];
+  }
+  try {
+    var o = JSON.parse(raw);
+    if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
+    return { cfg: o, meta: all.pmeta };
+  } catch (e) { return null; }
+}
+
+function psRaw(all) {
+  if (!all || !all.pmeta || !all.pmeta.n) return null;
+  var raw = '';
+  for (var i = 0; i < all.pmeta.n; i++) {
+    if (typeof all['p' + i] !== 'string') return null;
+    raw += all['p' + i];
+  }
+  return raw;
+}
+
+function psPush(loud) {
+  if (!psAvailable()) { if (loud) psFlash('EXTENSION ONLY'); return; }
+  var raw = JSON.stringify(exportable());
+  psGet(function (all) {
+    /* Identical content is not worth a write, and refusing it is what stops two
+       machines trading rewrites of the same setup until the rate limit bites. */
+    if (all && psRaw(all) === raw) {
+      _psRev = all.pmeta.rev;
+      _psAt = all.pmeta.at || _psAt;
+      if (S.profileAt !== _psAt) { S.profileAt = _psAt; psQuiet(persist); }
+      if (loud) psFlash('ALREADY SAVED'); else if (S.trayOpen) renderTray();
+      return;
+    }
+    var body = {}, n = 0;
+    for (var i = 0; i < raw.length; i += PS_CHUNK) body['p' + (n++)] = raw.slice(i, i + PS_CHUNK);
+    body.pmeta = { n: n, at: Date.now(), rev: 'r' + Date.now() + Math.random().toString(36).slice(2, 6) };
+    /* measured after escaping, which is the only figure the quota counts */
+    if (psBytes(body) > PS_MAX) { psFlash('TOO LARGE TO SYNC'); return; }
+
+    /* a shorter payload must not leave the old tail behind */
+    var stale = [];
+    if (all) Object.keys(all).forEach(function (k) {
+      if (/^p\d+$/.test(k) && body[k] === undefined) stale.push(k);
+    });
+    var done = function () {
+      _psRev = body.pmeta.rev;
+      _psAt = body.pmeta.at;
+      S.profileAt = body.pmeta.at;
+      psQuiet(persist);
+      if (loud) psFlash('PUSHED'); else if (S.trayOpen) renderTray();
+    };
+    psDo('set', body, function (ok) {
+      if (!ok) { psFlash('SYNC REFUSED THE WRITE'); return; }
+      if (stale.length) psDo('remove', stale, done); else done();
+    });
+  });
+}
+
+function psQueue() {
+  if (_psApplying || !S.profileSync || !psAvailable()) return;
+  clearTimeout(_psWrite);
+  _psWrite = setTimeout(function () { psPush(false); }, PS_DEBOUNCE);
+}
+
+function psPull(loud) {
+  if (!psAvailable()) { if (loud) psFlash('EXTENSION ONLY'); return; }
+  psGet(function (all) {
+    var got = psUnpack(all);
+    if (!got) { if (loud) psFlash('NOTHING STORED'); return; }
+    _psRev = got.meta.rev;
+    _psAt = got.meta.at || Date.now();
+    S.profileAt = _psAt;
+    psQuiet(function () { applyConfig(got.cfg); });
+    if (loud) psFlash('PULLED');
+  });
+}
+
+/* Another machine wrote. Skip our own echo, and hold off while a tray field has
+   the cursor — rewriting the DOM under a caret reads as the page fighting back. */
+function psRemote(changes, area) {
+  if (area !== 'sync' || !S.profileSync) return;
+  if (!changes || !changes.pmeta || !changes.pmeta.newValue) return;
+  var meta = changes.pmeta.newValue;
+  if (meta.rev === _psRev) return;
+  if (Date.now() - _psAt < PS_ECHO) return;
+  var a = document.activeElement, tag = (a && a.tagName) || '';
+  if (tag === 'INPUT' || tag === 'TEXTAREA') {
+    setTimeout(function () { psRemote(changes, area); }, 1500);
+    return;
+  }
+  psPull(false);
+  psFlash('UPDATED');
+}
+
+function psWatch() {
+  var api = psApi();
+  if (!api || !api.storage || !api.storage.onChanged) return;
+  try { api.storage.onChanged.addListener(psRemote); } catch (e) {}
+}
+
+/* On open, whichever side is newer wins. Ties do nothing. */
+function psReconcile() {
+  if (!S.profileSync || !psAvailable()) return;
+  psGet(function (all) {
+    var got = psUnpack(all);
+    if (!got) { psPush(false); return; }
+    var remote = got.meta.at || 0;
+    if (remote > (S.profileAt || 0)) {
+      _psRev = got.meta.rev;
+      _psAt = remote;
+      S.profileAt = remote;
+      psQuiet(function () { applyConfig(got.cfg); });
+    } else if (remote < (S.profileAt || 0)) {
+      psPush(false);
+    } else {
+      _psRev = got.meta.rev;
+      _psAt = remote;
+    }
+  });
+}
+
+function psStamp() {
+  if (!psAvailable()) return 'PROFILE SYNC NEEDS THE EXTENSION';
+  if (!S.profileSync) return 'OFF · SETTINGS STAY ON THIS MACHINE';
+  if (!S.profileAt) return 'ON · NOTHING SAVED YET';
+  var d = new Date(S.profileAt), p = function (n) { return String(n).padStart(2, '0'); };
+  return 'SAVED ' + d.getFullYear() + '.' + p(d.getMonth() + 1) + '.' + p(d.getDate()) +
+         ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
 }
 
 /* ------------------------------------------------------------------ *
@@ -1784,7 +2006,7 @@ function renderTray() {
       btn('EXPORT', cfgExport, { f: 1 }),
       btn('IMPORT', function () { if (D.cfgFileIn) D.cfgFileIn.click(); }, { f: 1 })
     ]),
-    note(S.cfgMsg || 'SAVES AND LOADS A .JSON FILE')
+    note(S.cfgMsg || 'SAVES AND LOADS A .JSON FILE · IMAGES NOT INCLUDED')
   ]);
 
   /* 11 SYNC */
@@ -1795,19 +2017,52 @@ function renderTray() {
   });
   tokenField.value = S.gistToken || '';
 
+  var SYNCTABS = [{ id: 'profile', label: 'PROFILE' }, { id: 'gist', label: 'GIST' }];
+  var syncBody;
+  if (S.syncTab === 'gist') {
+    syncBody = [
+      h('div', { c: 'row' }, [tokenField]),
+      h('div', { c: 'row' }, [
+        field('gid', S.gistId, function (e) { set({ gistId: e.target.value.trim() }); },
+          { c: 'tiny', ph: 'gist id (filled on first push)' })
+      ]),
+      h('div', { c: 'row' }, [
+        btn('PUSH', syncPush, { f: 1 }),
+        btn('PULL', syncPull, { f: 1 })
+      ]),
+      note(_syncMsg || syncStamp()),
+      note('MOVES A SETUP BETWEEN BROWSERS · TOKEN NEVER LEAVES THIS ONE')
+    ];
+  } else {
+    var live = psAvailable();
+    syncBody = [
+      h('div', { c: 'row' }, [
+        btn(S.profileSync ? 'PROFILE SYNC ON' : 'PROFILE SYNC OFF', function () {
+          if (!live) { psFlash('EXTENSION ONLY'); return; }
+          var on = !S.profileSync;
+          set({ profileSync: on });
+          if (on) psReconcile();
+        }, { f: 1 })
+      ]),
+      h('div', { c: 'row' }, [
+        btn('PUSH', function () { psPush(true); }, { f: 1 }),
+        btn('PULL', function () { psPull(true); }, { f: 1 })
+      ]),
+      note(_psMsg || psStamp()),
+      note(live
+        ? 'SAVES TO THIS BROWSER PROFILE · NEEDS SYNC SIGNED IN, AND ADD-ONS TICKED ON FIREFOX'
+        : 'INSTALL THE EXTENSION TO SYNC · EXPORT AND IMPORT STILL WORK', true)
+    ];
+  }
+
   var s11 = sec(null, [
     head('11 SYNC · 同期'),
-    h('div', { c: 'row' }, [tokenField]),
-    h('div', { c: 'row' }, [
-      field('gid', S.gistId, function (e) { set({ gistId: e.target.value.trim() }); },
-        { c: 'tiny', ph: 'gist id (filled on first push)' })
-    ]),
-    h('div', { c: 'row' }, [
-      btn('PUSH', syncPush, { f: 1 }),
-      btn('PULL', syncPull, { f: 1 })
-    ]),
-    note(_syncMsg || syncStamp())
-  ]);
+    h('div', { c: 'row' }, SYNCTABS.map(function (o) {
+      return h('div', { c: 'opt' + (S.syncTab === o.id ? ' on' : ''), t: o.label, btn: 1, on: { click: function () {
+        set({ syncTab: o.id });
+      } } });
+    }))
+  ].concat(syncBody));
 
   var foot = h('div', { c: 'foot' }, [
     h('span', { t: 'ESC TO CLOSE' }),
@@ -1867,6 +2122,9 @@ function boot() {
 
   window.addEventListener('keydown', handleKey);
   window.addEventListener('paste', handlePaste);
+
+  psWatch();
+  psReconcile();
 
   try {
     window.matchMedia('(prefers-color-scheme: dark)')
