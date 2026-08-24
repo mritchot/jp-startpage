@@ -10,7 +10,6 @@
 html,body{margin:0;padding:0;background:#12100d}
 a{color:var(--accent,#d4cdb8);text-decoration:none}
 a:hover{color:var(--accent2,#c1503c)}
-::selection{background:#d4cdb8;color:#12100d}
 ::selection{background:var(--accent);color:var(--bg)}
 input,select,button,textarea{font-family:'IBM Plex Mono',ui-monospace,monospace}
 @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
@@ -29,8 +28,8 @@ input,select,button,textarea{font-family:'IBM Plex Mono',ui-monospace,monospace}
   background:radial-gradient(ellipse at 50% 45%,transparent 40%,var(--vig,rgba(0,0,0,.55)) 100%)}
 .grid{position:fixed;inset:0;pointer-events:none;z-index:80;opacity:1;
   background-image:
-    repeating-linear-gradient(to right,var(--grid,rgba(0,0,0,.03)) 0 1px,transparent 1px var(--gridGap,4.5px)),
-    repeating-linear-gradient(to bottom,var(--grid,rgba(0,0,0,.03)) 0 1px,transparent 1px var(--gridGap,4.5px))}
+    repeating-linear-gradient(to right,var(--grid,rgba(0,0,0,.03)) 0 1px,transparent 1px 4.5px),
+    repeating-linear-gradient(to bottom,var(--grid,rgba(0,0,0,.03)) 0 1px,transparent 1px 4.5px)}
 
 /* ---- quote ---- */
 .quote{position:fixed;top:34px;left:40px;max-width:min(calc(50vw - 60px),760px);
@@ -70,7 +69,7 @@ input,select,button,textarea{font-family:'IBM Plex Mono',ui-monospace,monospace}
 
 /* ---- clock ---- */
 .clock{width:46px;display:flex;flex-direction:column;align-items:center;
-  justify-content:var(--clockJust,space-between);gap:var(--tGap,0px);padding:15px 0}
+  justify-content:center;gap:var(--tGap,0px);padding:15px 0}
 .c-date{font-family:'DotGothic16',monospace;font-size:var(--fs-date,13px);letter-spacing:1px;color:var(--fg)}
 .c-wk{font-size:var(--fs-wk,9px);letter-spacing:2px;color:var(--dim)}
 .c-time{font-family:'DotGothic16',monospace;font-size:var(--fs-time,19px);letter-spacing:1px;color:var(--accent)}
@@ -138,7 +137,6 @@ input,select,button,textarea{font-family:'IBM Plex Mono',ui-monospace,monospace}
 .btn.warn:hover{background:var(--accent2);color:var(--bg)}
 .stp{width:34px;flex:none;background:var(--panelHi);border:1px solid transparent;padding:7px;text-align:center;font-size:11px;color:var(--fg);cursor:pointer;user-select:none}
 .stp:hover{background:var(--fg);color:var(--bg)}
-.stp.warn:hover{background:var(--accent2);color:var(--bg)}
 .val{flex:1;text-align:center;font-size:10px;letter-spacing:1px;color:var(--fg)}
 .in{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line);color:var(--fg);font-size:12px;padding:9px 10px;outline:none}
 .in:focus{border-color:var(--accent)}
@@ -188,9 +186,9 @@ input,select,button,textarea{font-family:'IBM Plex Mono',ui-monospace,monospace}
 @media (max-width:900px){
   .cmd{left:40px;right:auto;width:auto;padding:0;bottom:118px;justify-content:flex-start}
 }
-/* Boxes stop shrinking at 180px, so below roughly 460px of height the bottom
-   cluster runs out of room. The weather block is the tallest thing down there
-   and the most expendable; config stays, or settings become unreachable.
+/* Below 560px of height the bottom cluster runs out of room. The weather
+   block is the tallest thing down there and the most expendable; config
+   stays, or settings become unreachable.
    Must come after the width query so it wins on .cmd bottom. */
 @media (max-height:560px){
   .wx{display:none}

@@ -48,7 +48,8 @@ var BASE_ENGINES = [
 function engineList() {
   var l = BASE_ENGINES.slice();
   var t = (S.engineCustom || '').trim();
-  if (t.indexOf('%s') >= 0) l.push({ id: 'c', name: 'CUSTOM', url: t });
+  /* the one navigation target outside safeUrl(), so it carries its own gate */
+  if (t.indexOf('%s') >= 0 && /^https?:\/\//i.test(t)) l.push({ id: 'c', name: 'CUSTOM', url: t });
   return l;
 }
 function searchUrl(eng, term) { return eng.url.replace('%s', encodeURIComponent(term)); }
@@ -198,7 +199,7 @@ function persist() {
       syncTab: S.syncTab, profileSync: S.profileSync, profileAt: S.profileAt
     }));
   } catch (e) {}
-  if (typeof psQueue === 'function') psQueue();
+  psQueue();
 }
 function exportable() {
   return {
@@ -295,10 +296,10 @@ function computeSizing() {
     var p = 34 + ln * (B.link * sc * 1.5) + Math.max(0, ln - 1) * (12 * sc);
     return Math.max(g, c, strip, p);
   };
-  /* Never let a box grow past what the window can show. 150px is reserved top
-     and bottom for the quote and the weather/terminal cluster. S.boxH keeps the
-     user's preference untouched; only the applied height is clamped, so a tall
-     setting still applies in full on a taller display. */
+  /* Never let a box grow past what the window can show: 230px stays reserved
+     for the quote and the weather/terminal cluster, 170px once weather hides.
+     S.boxH keeps the user's preference untouched; only the applied height is
+     clamped, so a tall setting still applies in full on a taller display. */
   var short = (window.innerHeight || 800) <= 560;
   var maxH = Math.max(140, (window.innerHeight || 800) - (short ? 170 : 230));
   var sc = S.textScale, H = Math.min(Math.max(140, S.boxH), maxH);
@@ -357,7 +358,6 @@ function applySizing() {
   Sv('--fs-link', px(B.link * sc));
   Sv('--gap-link', px(12 * sc));
   Sv('--tAlign', S.align === 'top' ? 'flex-start' : 'center');
-  Sv('--clockJust', 'center');            /* the clock always centres */
   Sv('--tGap', px(14 * sc));
   Sv('--cmdSlot', S.searchEnabled ? '326px' : '140px');
   Sv('--cmdEng', S.searchEnabled ? '74px' : '0px');
@@ -527,13 +527,13 @@ function pullQuotes() {
       if (!list.length) throw 0;
       try { localStorage.setItem(Q_KEY, JSON.stringify({ url: S.gistUrl, list: list })); } catch (e) {}
       QUOTES = list;
-      _pullMsg = 'OK';
+      _pullMsg = 'PULLED';
       set({ quoteIdx: 0 });
       setTimeout(function () { _pullMsg = 'PULL'; renderTray(); }, 1400);
     })
     .catch(function () {
       applyQuotes();
-      _pullMsg = 'OFFLINE';
+      _pullMsg = 'FAILED';
       render();
       setTimeout(function () { _pullMsg = 'PULL'; renderTray(); }, 1600);
     });
@@ -549,6 +549,45 @@ var GEOMODES = [
   { id: 'precise', label: 'PRECISE' }
 ];
 
+/* Firefox 140+ gates optional data collection behind a browser-level grant the
+   manifest advertises; Chrome gates navigator.geolocation on extension pages
+   behind the optional geolocation permission. Each request runs only on the
+   platform that owns it, synchronously inside the click, and any API absence
+   or throw falls through as granted so neither browser can lose weather over
+   a permission call the platform does not support. */
+function askGeo(cb) {
+  try {
+    if (typeof browser !== 'undefined' && browser.permissions && browser.permissions.request) {
+      browser.permissions.request({ data_collection: ['locationInfo'] })
+        .then(function (ok) { cb(ok !== false); }, function () { cb(true); });
+      return;
+    }
+  } catch (e) {}
+  cb(true);
+}
+function askPrecise(cb) {
+  try {
+    if (typeof browser === 'undefined' && typeof chrome !== 'undefined' &&
+        chrome.permissions && chrome.permissions.request) {
+      chrome.permissions.request({ permissions: ['geolocation'] }, function (ok) {
+        cb(!!ok && !(chrome.runtime && chrome.runtime.lastError));
+      });
+      return;
+    }
+  } catch (e) {}
+  cb(true);
+}
+function geoAllowed(cb) {
+  try {
+    if (typeof browser !== 'undefined' && browser.permissions && browser.permissions.contains) {
+      browser.permissions.contains({ data_collection: ['locationInfo'] })
+        .then(function (ok) { cb(!!ok); }, function () { cb(true); });
+      return;
+    }
+  } catch (e) {}
+  cb(true);
+}
+
 /* Open-Meteo returns an IANA zone, so the last segment gives a usable place
    name without a second round trip to a reverse geocoder. */
 function tzLabel(tz) {
@@ -557,6 +596,8 @@ function tzLabel(tz) {
 }
 
 function forecastAt(lat, lon, label, key) {
+  lat = Math.round(lat * 100) / 100;   /* ~1km: enough for a forecast, not a household */
+  lon = Math.round(lon * 100) / 100;
   return fetch('https://api.open-meteo.com/v1/forecast?forecast_days=1&timezone=auto' +
     '&latitude=' + lat + '&longitude=' + lon +
     '&current=temperature_2m,weather_code' +
@@ -602,24 +643,34 @@ function fetchWeather(force) {
   var quiet = function () { /* leave whatever is already on screen */ };
 
   if (mode === 'approx') {
-    /* IP lookup: no permission prompt, city name comes back with the position */
-    fetch('https://ipapi.co/json/')
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (!j || j.latitude == null) throw 0;
-        return forecastAt(j.latitude, j.longitude, String(j.city || '').toUpperCase(), key);
-      })
-      .catch(quiet);
+    geoAllowed(function (ok) {
+      if (!ok) return;
+      /* IP lookup: no permission prompt, city name comes back with the position */
+      fetch('https://ipapi.co/json/')
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (!j || j.latitude == null) throw 0;
+          return forecastAt(j.latitude, j.longitude, String(j.city || '').toUpperCase(), key);
+        })
+        .catch(quiet);
+    });
     return;
   }
 
   if (mode === 'precise') {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      function (pos) { forecastAt(pos.coords.latitude, pos.coords.longitude, '', key).catch(quiet); },
-      quiet,
-      { timeout: 10000, maximumAge: 600000 }
-    );
+    geoAllowed(function (ok) {
+      if (!ok || !navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition(
+        function (pos) { forecastAt(pos.coords.latitude, pos.coords.longitude, '', key).catch(quiet); },
+        function () {
+          /* denied or unavailable: without this the tray reads LOCATING… forever */
+          WX_LABEL = 'NO LOCATION';
+          paint();
+          if (S.trayOpen) renderTray();
+        },
+        { timeout: 10000, maximumAge: 600000 }
+      );
+    });
     return;
   }
 
@@ -708,18 +759,33 @@ function sanitizeCats(cats) {
   return out.length ? out : null;
 }
 
+/* A payload value lands only where its shape matches the defaults: a null or
+   mistyped leaf keeps the current value instead of poisoning S, where a later
+   persist() would carry it into localStorage and crash the next boot. */
+function shaped(d, v, cur) {
+  if (d === null || typeof d !== 'object') return typeof v === typeof d ? v : cur;
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return cur;
+  var out = {}, k;
+  for (k in d) out[k] = shaped(d[k], v[k], (cur && typeof cur === 'object' && !Array.isArray(cur)) ? cur[k] : d[k]);
+  return out;
+}
+
 /* Imports and pulled payloads merge through this whitelist: only the keys
    exportable() emits are accepted, so a crafted config can never set the
    token, the gist id, or transient state. Cats are rebuilt field by field. */
 function applyConfig(o) {
+  var base = defaults();
   Object.keys(exportable()).forEach(function (k) {
     if (k === 'cats' || o[k] === undefined) return;
-    S[k] = o[k];
+    S[k] = shaped(base[k], o[k], S[k]);
   });
   var cats = sanitizeCats(o.cats);
   if (cats) S.cats = cats;
   if (!S.cats.some(function (c) { return c.id === S.editCatId; })) S.editCatId = S.cats[0].id;
   if (S.openId && !S.cats.some(function (c) { return c.id === S.openId; })) S.openId = null;
+  S.editLinkIdx = null;
+  _bucket = undefined;
+  _qBucket = undefined;
   applyQuotes();
   applyTheme();
   render();
@@ -754,13 +820,36 @@ function cfgImportFile(file) {
  * the payload is sliced across numbered items. Chrome also rate-limits writes
  * to 120 a minute, which the debounce below stays well clear of.
  * ------------------------------------------------------------------ */
-/* 4000 raw characters cannot exceed the 8,192-byte per-item cap even if every
-   one of them were a quote mark that JSON escaping doubles. */
-var PS_CHUNK = 4000;
+/* Both quotas are enforced in UTF-8 bytes of the JSON-encoded value: CJK text
+   costs up to three bytes per character and a control character six, so chunks
+   are cut by measured bytes, never by character count. */
+var PS_ITEM = 7600;
 var PS_MAX = 100000;
 var PS_DEBOUNCE = 2500;
-var PS_ECHO = 5000;
-var _psWrite, _psRev = '', _psAt = 0, _psMsg = '';
+var _psWrite, _psRev = '', _psMsg = '';
+
+var PS_ENC = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
+function psUtf8(s) { return PS_ENC ? PS_ENC.encode(s).length : s.length * 3; }
+
+function psSlice(raw) {
+  var out = [], i = 0, take, bytes, next;
+  while (i < raw.length) {
+    take = Math.min(raw.length - i, PS_ITEM);
+    for (;;) {
+      if (take > 1) {
+        var c = raw.charCodeAt(i + take - 1);
+        if (c >= 0xD800 && c < 0xDC00) take--;   /* never split a surrogate pair */
+      }
+      bytes = psUtf8(JSON.stringify(raw.slice(i, i + take)));
+      if (bytes <= PS_ITEM || take <= 1) break;
+      next = Math.floor(take * PS_ITEM / bytes);
+      take = next < take ? next : take - 1;
+    }
+    out.push(raw.slice(i, i + take));
+    i += take;
+  }
+  return out;
+}
 
 /* True while a payload from the profile is being applied, and while a push
    records its own result. Both write to localStorage, and persist() is what
@@ -809,7 +898,7 @@ function psDo(method, arg, cb) {
 /* what the browsers actually charge for: the key plus the stringified value */
 function psBytes(obj) {
   var t = 0;
-  Object.keys(obj).forEach(function (k) { t += k.length + JSON.stringify(obj[k]).length; });
+  Object.keys(obj).forEach(function (k) { t += psUtf8(k) + psUtf8(JSON.stringify(obj[k])); });
   return t;
 }
 
@@ -821,8 +910,7 @@ function psFlash(m, hold) {
   }, 2200);
 }
 
-/* callback style throughout: Firefox returns promises, Chrome takes callbacks,
-   and the callback form is the one both accept */
+/* null strictly means the read FAILED; empty storage comes back as {} */
 function psGet(cb) {
   psDo('get', null, function (all) { cb(all && typeof all === 'object' ? all : null); });
 }
@@ -855,36 +943,42 @@ function psPush(loud) {
   if (!psAvailable()) { if (loud) psFlash('EXTENSION ONLY'); return; }
   var raw = JSON.stringify(exportable());
   psGet(function (all) {
+    if (all === null) { if (loud) psFlash('FAILED'); return; }
     /* Identical content is not worth a write, and refusing it is what stops two
        machines trading rewrites of the same setup until the rate limit bites. */
-    if (all && psRaw(all) === raw) {
+    if (psRaw(all) === raw) {
       _psRev = all.pmeta.rev;
-      _psAt = all.pmeta.at || _psAt;
-      if (S.profileAt !== _psAt) { S.profileAt = _psAt; psQuiet(persist); }
+      if (all.pmeta.at && S.profileAt !== all.pmeta.at) { S.profileAt = all.pmeta.at; psQuiet(persist); }
       if (loud) psFlash('ALREADY SAVED'); else if (S.trayOpen) renderTray();
       return;
     }
-    var body = {}, n = 0;
-    for (var i = 0; i < raw.length; i += PS_CHUNK) body['p' + (n++)] = raw.slice(i, i + PS_CHUNK);
-    body.pmeta = { n: n, at: Date.now(), rev: 'r' + Date.now() + Math.random().toString(36).slice(2, 6) };
-    /* measured after escaping, which is the only figure the quota counts */
+    var body = {}, chunks = psSlice(raw);
+    chunks.forEach(function (c, i) { body['p' + i] = c; });
+    body.pmeta = { n: chunks.length, at: Date.now(), rev: 'r' + Date.now() + Math.random().toString(36).slice(2, 6) };
     if (psBytes(body) > PS_MAX) { psFlash('TOO LARGE TO SYNC'); return; }
 
     /* a shorter payload must not leave the old tail behind */
     var stale = [];
-    if (all) Object.keys(all).forEach(function (k) {
+    Object.keys(all).forEach(function (k) {
       if (/^p\d+$/.test(k) && body[k] === undefined) stale.push(k);
     });
     var done = function () {
-      _psRev = body.pmeta.rev;
-      _psAt = body.pmeta.at;
       S.profileAt = body.pmeta.at;
       psQuiet(persist);
       if (loud) psFlash('PUSHED'); else if (S.trayOpen) renderTray();
     };
+    /* before the write: storage.onChanged fires in the writing context too */
+    _psRev = body.pmeta.rev;
     psDo('set', body, function (ok) {
-      if (!ok) { psFlash('SYNC REFUSED THE WRITE'); return; }
-      if (stale.length) psDo('remove', stale, done); else done();
+      if (ok) { if (stale.length) psDo('remove', stale, done); else done(); return; }
+      /* Coarser chunking than what is stored can push the transient total past
+         the area quota. Clear the leftovers and try once more. */
+      if (!stale.length) { psFlash('SYNC REFUSED THE WRITE'); return; }
+      psDo('remove', stale, function () {
+        psDo('set', body, function (ok2) {
+          if (ok2) done(); else psFlash('SYNC REFUSED THE WRITE');
+        });
+      });
     });
   });
 }
@@ -892,17 +986,17 @@ function psPush(loud) {
 function psQueue() {
   if (_psApplying || !S.profileSync || !psAvailable()) return;
   clearTimeout(_psWrite);
-  _psWrite = setTimeout(function () { psPush(false); }, PS_DEBOUNCE);
+  _psWrite = setTimeout(function () { if (S.profileSync) psPush(false); }, PS_DEBOUNCE);
 }
 
 function psPull(loud) {
   if (!psAvailable()) { if (loud) psFlash('EXTENSION ONLY'); return; }
   psGet(function (all) {
+    if (all === null) { if (loud) psFlash('FAILED'); return; }
     var got = psUnpack(all);
     if (!got) { if (loud) psFlash('NOTHING STORED'); return; }
     _psRev = got.meta.rev;
-    _psAt = got.meta.at || Date.now();
-    S.profileAt = _psAt;
+    S.profileAt = got.meta.at || Date.now();
     psQuiet(function () { applyConfig(got.cfg); });
     if (loud) psFlash('PULLED');
   });
@@ -913,9 +1007,7 @@ function psPull(loud) {
 function psRemote(changes, area) {
   if (area !== 'sync' || !S.profileSync) return;
   if (!changes || !changes.pmeta || !changes.pmeta.newValue) return;
-  var meta = changes.pmeta.newValue;
-  if (meta.rev === _psRev) return;
-  if (Date.now() - _psAt < PS_ECHO) return;
+  if (changes.pmeta.newValue.rev === _psRev) return;
   var a = document.activeElement, tag = (a && a.tagName) || '';
   if (tag === 'INPUT' || tag === 'TEXTAREA') {
     setTimeout(function () { psRemote(changes, area); }, 1500);
@@ -935,19 +1027,18 @@ function psWatch() {
 function psReconcile() {
   if (!S.profileSync || !psAvailable()) return;
   psGet(function (all) {
+    if (all === null) return;   /* a failed read must not be mistaken for empty storage */
     var got = psUnpack(all);
     if (!got) { psPush(false); return; }
     var remote = got.meta.at || 0;
     if (remote > (S.profileAt || 0)) {
       _psRev = got.meta.rev;
-      _psAt = remote;
       S.profileAt = remote;
       psQuiet(function () { applyConfig(got.cfg); });
     } else if (remote < (S.profileAt || 0)) {
       psPush(false);
     } else {
       _psRev = got.meta.rev;
-      _psAt = remote;
     }
   });
 }
@@ -1174,9 +1265,10 @@ function snapFlip(container, attr) {
   });
   _flip = { container: container, attr: attr, map: map };
 }
-function playFlip() {
+function playFlip(container) {
   var f = _flip;
   if (!f || !f.container || !f.container.isConnected) { _flip = null; return; }
+  if (container && f.container !== container) return;
   _flip = null;
   f.container.querySelectorAll('[' + f.attr + ']').forEach(function (el) {
     var prev = f.map[el.getAttribute(f.attr)];
@@ -1203,8 +1295,10 @@ function mark(name, key) {
 function faviconFor(url) {
   if (!S.linkIcons) return '';
   var host = String(url || '').replace(/^https?:\/\//, '').split('/')[0];
-  if (!host || /^(\d+\.){3}\d+/.test(host) || host.indexOf('.') < 0) return '';
-  return 'https://www.google.com/s2/favicons?sz=32&domain=' + host;
+  var bare = host.replace(/:\d+$/, '');
+  if (!bare || /^(\d+\.){3}\d+$/.test(bare) || bare.indexOf('.') < 0) return '';
+  if (/\.(local|lan|internal|home\.arpa)$/i.test(bare)) return '';
+  return 'https://www.google.com/s2/favicons?sz=32&domain=' + bare;
 }
 
 function updateCat(patch) {
@@ -1388,7 +1482,7 @@ function renderPanels() {
   if (_dragC != null && D.panels.children.length === S.cats.length) { reflowPanels(); return; }
   clear(D.panels);
   D.panels.appendChild(frag(S.cats.map(buildCat)));
-  playFlip();
+  playFlip(D.panels);
   if (D.root) applyRailPad(D.root);
   revealOpen();
   railFades();
@@ -1403,7 +1497,7 @@ function reflowPanels() {
     n.style.opacity = S.dragCid === c.id ? '.34' : '1';
     D.panels.appendChild(n);
   });
-  playFlip();
+  playFlip(D.panels);
 }
 
 /* The rail hides its scrollbar, so overflow needs its own signal: a gradient
@@ -1496,8 +1590,8 @@ function btn(label, fn, opt) {
     t: label, s: opt.s || null, btn: 1, al: opt.al || null, on: { click: fn }
   });
 }
-function stp(label, fn, warn, al) {
-  return h('div', { c: 'stp' + (warn ? ' warn' : ''), t: label, btn: 1, al: al || null, on: { click: fn } });
+function stp(label, fn, al) {
+  return h('div', { c: 'stp', t: label, btn: 1, al: al || null, on: { click: fn } });
 }
 function field(key, value, fn, opt) {
   opt = opt || {};
@@ -1585,7 +1679,7 @@ function restoreFocus(f) {
   if (f.s != null) { try { el.setSelectionRange(f.s, f.e); } catch (err) {} }
 }
 
-function linkKey(l) { return (l.label || '') + '|@|' + (l.url || ''); }
+function linkKey(l) { return (l.label || '') + '|' + (l.key || '') + '|' + (l.url || ''); }
 function linkIndex(node) {
   return D.linksBox ? Array.prototype.indexOf.call(D.linksBox.children, node) : -1;
 }
@@ -1599,7 +1693,7 @@ function reflowLinks() {
     n.style.opacity = S.dragLid === key ? '.34' : '1';
     D.linksBox.appendChild(n);
   });
-  playFlip();
+  playFlip(D.linksBox);
 }
 
 /* The stored URL is left exactly as typed while a row is open, so the field
@@ -1607,9 +1701,11 @@ function reflowLinks() {
 function normalizedLinks(i) {
   var links = editCat().links || [];
   if (i == null || !links[i]) return null;
-  var norm = safeUrl(links[i].url);
-  if (norm === links[i].url) return null;
-  return links.map(function (x, j) { return j === i ? Object.assign({}, x, { url: norm }) : x; });
+  var l = links[i];
+  var fix = { url: safeUrl(l.url) };
+  if (!l.key && l.label) fix.key = l.label.charAt(0).toLowerCase();
+  if (fix.url === l.url && fix.key === undefined) return null;
+  return links.map(function (x, j) { return j === i ? Object.assign({}, x, fix) : x; });
 }
 function setLinkEdit(next) {
   var fixed = normalizedLinks(S.editLinkIdx);
@@ -1625,8 +1721,8 @@ function patchLink(i, o) {
   }) });
 }
 
-/* label, hotkey and URL, edited in place. Drag is off while a row is open:
-   the row is no longer draggable, so the pointer belongs to the fields. */
+/* Drag is off while a row is open: the edited row is not draggable, so the
+   pointer belongs to the fields. */
 function buildLinkEdit(l, i, dupe) {
   var commit = { keydown: function (e) { if (e.key === 'Enter') { e.preventDefault(); closeLinkEdit(); } } };
   var keyIn = field('el-k', l.key, function (e) {
@@ -1698,6 +1794,11 @@ function buildLinkRow(l, i) {
     dragTook(e.clientY);
     snapFlip(D.linksBox, 'data-lid');
     _dragL = to;
+    var ei = S.editLinkIdx;
+    if (ei != null) {
+      if (from < ei && to >= ei) S.editLinkIdx = ei - 1;
+      else if (from > ei && to <= ei) S.editLinkIdx = ei + 1;
+    }
     updateCat({ links: reorder(editCat().links || [], from, to) });
   }
   function end(e) {
@@ -1746,15 +1847,15 @@ function renderTray() {
     ]),
     h('div', { c: 'row mid' }, [
       h('span', { c: 'lab', t: 'TEXT' }),
-      stp('−', function () { set({ textScale: Math.max(0.6, Math.round((S.textScale - 0.1) * 10) / 10) }); }, 0, 'Smaller text'),
+      stp('−', function () { set({ textScale: Math.max(0.6, Math.round((S.textScale - 0.1) * 10) / 10) }); }, 'Smaller text'),
       h('span', { c: 'val', t: Math.round(S.textScale * 100) + '%' }),
-      stp('＋', function () { set({ textScale: Math.min(1.6, Math.round((S.textScale + 0.1) * 10) / 10) }); }, 0, 'Larger text')
+      stp('＋', function () { set({ textScale: Math.min(1.6, Math.round((S.textScale + 0.1) * 10) / 10) }); }, 'Larger text')
     ]),
     h('div', { c: 'row mid' }, [
       h('span', { c: 'lab', t: 'HEIGHT' }),
-      stp('−', function () { set({ boxH: Math.max(200, S.boxH - 20) }); }, 0, 'Shorter boxes'),
+      stp('−', function () { set({ boxH: Math.max(200, S.boxH - 20) }); }, 'Shorter boxes'),
       h('span', { c: 'val', t: sizing.H + 'PX' + (sizing.capped ? ' · CAPPED' : (S.fitMode === 'fit' ? '' : ' · AUTO')) }),
-      stp('＋', function () { set({ boxH: Math.min(760, S.boxH + 20) }); }, 0, 'Taller boxes')
+      stp('＋', function () { set({ boxH: Math.min(760, S.boxH + 20) }); }, 'Taller boxes')
     ]),
     h('div', { c: 'row' }, [
       btn(S.linkIcons ? 'FAVICONS ON' : 'FAVICONS OFF', function () {
@@ -1791,7 +1892,7 @@ function renderTray() {
     );
   } else {
     greetBody = field('greeting', S.greeting, function (e) { set({ greeting: e.target.value }); },
-      { c: 'full', s: 'flex:none;width:100%;box-sizing:border-box' });
+      { s: 'flex:none;width:100%;box-sizing:border-box' });
   }
   var s03 = sec(null, [
     head('03 GREETING · 挨拶'),
@@ -1808,8 +1909,17 @@ function renderTray() {
     head('04 WEATHER · 天気'),
     h('div', { c: 'row' }, GEOMODES.map(function (o) {
       return h('div', { c: 'opt' + (S.geoMode === o.id ? ' on' : ''), t: o.label, btn: 1, on: { click: function () {
-        set({ geoMode: o.id });
-        fetchWeather(true);
+        if (o.id === 'manual') { WX_LABEL = ''; set({ geoMode: 'manual' }); fetchWeather(true); return; }
+        askGeo(function (ok) {
+          if (!ok) return;
+          var go = function (ok2) {
+            if (!ok2) return;
+            WX_LABEL = '';
+            set({ geoMode: o.id });
+            fetchWeather(true);
+          };
+          if (o.id === 'precise') askPrecise(go); else go(true);
+        });
       } } });
     })),
     S.geoMode === 'manual'
@@ -1942,9 +2052,9 @@ function renderTray() {
     })),
     h('div', { c: 'row mid' }, [
       h('span', { c: 'lab', t: 'CROP' }),
-      stp('−', function () { patchImg({ s: Math.max(1, Math.round(((curImg() || {}).s || 1) * 10 - 1) / 10) }); }, 0, 'Zoom out'),
+      stp('−', function () { patchImg({ s: Math.max(1, Math.round(((curImg() || {}).s || 1) * 10 - 1) / 10) }); }, 'Zoom out'),
       h('span', { c: 'val', t: im ? Math.round((im.s || 1) * 100) + '%' : '—' }),
-      stp('＋', function () { patchImg({ s: Math.min(4, Math.round(((curImg() || {}).s || 1) * 10 + 1) / 10) }); }, 0, 'Zoom in'),
+      stp('＋', function () { patchImg({ s: Math.min(4, Math.round(((curImg() || {}).s || 1) * 10 + 1) / 10) }); }, 'Zoom in'),
       btn('FIT', function () { patchImg({ s: 1, x: 0, y: 0 }); },
         { s: 'width:52px;flex:none;padding:7px;font-size:9px;letter-spacing:1px' })
     ]),
@@ -1963,7 +2073,8 @@ function renderTray() {
   var engSel = h('select', { c: 'sel', a: { 'data-k': 'engsel' }, on: {
     change: function (e) { set({ engine: e.target.value }); }
   } }, engineList().map(function (e) { return h('option', { t: e.name, a: { value: e.id } }); }));
-  engSel.value = S.engine;
+  engSel.value = engineList().some(function (e) { return e.id === S.engine; })
+    ? S.engine : engineList()[0].id;
   var s08 = sec(null, [
     head('08 SEARCH · 検索'),
     h('div', { c: 'row' }, [
@@ -2057,7 +2168,7 @@ function renderTray() {
   D.trayHost.appendChild(D.tray);
   D.tray.scrollTop = scrolled;   /* a rebuild must not throw the reader back to the top */
   restoreFocus(focus);
-  playFlip();
+  playFlip(D.linksBox);
 }
 
 var _wxDebounce;
@@ -2090,6 +2201,7 @@ function boot() {
       delete saved.theme.invert;
     }
     Object.assign(S, saved);
+    if (!S.cats.some(function (c) { return c.id === S.editCatId; })) S.editCatId = S.cats[0].id;
   }
   applyQuotes();
   if (S.quoteSched === 'open' && QUOTES.length > 1) S.quoteIdx = (S.quoteIdx + 1) % QUOTES.length;
