@@ -8,44 +8,34 @@ Last Update: 24/08/26
 
 [LIVE PREVIEW](https://mritchot.github.io/jp-startpage/)
 
-## INSTALLATION INSTRUCTIONS
+## INSTALLATION
 
-### As a new tab (best)
+JP-Startpage installs as a browser extension and takes over the new tab.
 
-This can run as a browser extension.
+### Firefox
 
-**Firefox**
+**Signed build.** Grab the `.xpi` from the [latest release](https://github.com/mritchot/jp-startpage/releases/latest). Opening that link in Firefox installs it straight away. If you saved the file instead, drag it onto a Firefox window, or use `about:addons` → gear icon → *Install Add-on From File*.
 
-Grab the signed `.xpi` from the [latest release](https://github.com/mritchot/jp-startpage/releases/latest). Opening that link in Firefox installs it straight away; if you have saved the file instead, drag it onto a Firefox window, or use `about:addons` → gear icon → *Install Add-on From File*.
+**Manual install.** Download this repo, then open `about:debugging` → *This Firefox* → *Load Temporary Add-on* and pick `manifest.json`. Firefox drops temporary add-ons on restart, so use this one for development only.
 
-To run an unsigned copy in Firefox instead use `about:debugging` → *This Firefox* → *Load Temporary Add-on* and pick `manifest.json` after downloading this repo. Firefox drops temporary add-ons on restart, so the signed `.xpi` is preferred.
+Needs Firefox 142 or later.
 
-Needs Firefox 142 or later. It is self-distributed and will not auto-update itself.
+### Chrome
 
-**Chrome**
+**Web Store.** Install from the [Chrome Web Store](https://chromewebstore.google.com/detail/jp-startpage/njhkdmembkbbcagahaiknbdfomnloaio). This build updates itself.
 
-Install from the [Chrome Web Store](https://chromewebstore.google.com/detail/jp-startpage/njhkdmembkbbcagahaiknbdfomnloaio).
+**Manual install.** Download this repo, then open `chrome://extensions`, turn on Developer mode, choose *Load unpacked*, and select the folder.
 
-To run an unpacked copy instead go to `chrome://extensions`, turn on Developer mode, choose *Load unpacked*, and select this folder after downloading this repo.
+### Other Chromium browsers
 
-Unlike the Firefox build, the Web Store version updates itself.
+The Chrome build runs on Edge, Brave and Vivaldi. Each needs one thing set first, and Opera cannot run it as a new tab at all.
 
-### As a home page
+- **Edge** — open the Chrome Web Store listing and accept *Allow extensions from other stores* when Edge offers it. The new tab override then works.
+- **Brave** — installs from the Chrome Web Store and honours the new tab override.
+- **Vivaldi** — installs from the Chrome Web Store, then tick *Settings → Tabs → New Tab Page → Start Page → Controlled by Extension*. Vivaldi sometimes shows its own Start Page again after a full restart.
+- **Opera** — ignores the new tab override entirely. Point Opera's startup page at the [live preview](https://mritchot.github.io/jp-startpage/) instead.
 
-1. Fork this repo.
-2. Enable GitHub Pages for your fork at `Settings > Pages > Source [Deploy from a branch] > Branch [main / root] > Save`
-3. Point your browser at it:
-   - **Firefox** — menu button, Settings, Home panel, then set *Homepage and new windows* to Custom URLs and paste your GitHub Pages link.
-   - **Chrome** — Settings, On startup, *Open a specific page*, and paste the same link.
-
-### As a new tab, without packaging anything
-
-If you would rather not load an extension yourself, a redirector pointed at your Pages URL also works.
-
-- Firefox: [New Tab Override](https://addons.mozilla.org/en-US/firefox/addon/new-tab-override/)
-- Chromium: [Custom New Tab URL](https://chromewebstore.google.com/detail/custom-new-tab-url/mmjbdbjnoablegbkcklggeknkfcjkjia)
-
-Or just open `index.html` off your disk.
+Manual install is the same on all four: Developer mode, then *Load unpacked*.
 
 ## CONFIGURATION
 
@@ -73,7 +63,11 @@ See the QUOTES section below.
 
 **06 PANELS · パネル**
 
-The dropdown picks which panel you are editing; `＋` adds one and `×` deletes it. Below that, the panel's name and its hotkey letter. The list underneath is that panel's links — drag the ⣿ handle to reorder, `×` on a row to remove it. The bottom row adds a link: label, hotkey, URL. The hotkey is highlighted inside the label as `/g/mail`, and leaving it blank uses the first letter. Panels themselves reorder by dragging them in the main rail.
+The dropdown picks which panel you are editing; `＋` adds one and `×` deletes it. Below that, the panel's name and its hotkey letter.
+
+The list underneath is that panel's links. Click a row to edit its label, hotkey and URL in place, then press Enter or `✓` to close it. Drag a row to reorder it, and `×` removes it. The bottom row adds a link: label, hotkey, URL.
+
+The hotkey is highlighted inside the label as `/g/mail`, and leaving it blank uses the first letter. A hotkey claimed twice in one panel turns red, because only the first will fire. Panels themselves reorder by dragging them in the main rail.
 
 **07 IMAGE · 画像**
 
@@ -119,7 +113,21 @@ ROTATE sets how often the quote changes on its own: on open, hourly, daily, week
 
 ## SYNC
 
-Each browser keeps its own settings. `11 SYNC` moves a setup between them through a secret GitHub Gist.
+Each browser keeps its own settings. `11 SYNC` offers two ways to share one setup, on separate tabs.
+
+### PROFILE
+
+Profile sync uses the browser's own extension storage, which Chrome and Firefox replicate across a signed-in profile. It is the easy path: turn it on, and every machine running the extension under that profile stays level.
+
+Switch `PROFILE SYNC` on. From then on, a change saves about two seconds after you make it, and a change made elsewhere arrives on its own. `PUSH` and `PULL` force either direction by hand. A change arriving while you are typing in the tray waits until you leave the field.
+
+Profile sync needs the extension. A copy opened from disk or served from GitHub Pages has no extension storage, so the tab reports `EXTENSION ONLY` and the export file stays your route. Chrome needs you signed in with sync on. Firefox needs a Firefox Account with **Add-ons** ticked in `about:preferences` → Sync, or the data is kept but never leaves the machine.
+
+The browser caps this storage at 100 KB. A setup past that reports `TOO LARGE TO SYNC` and nothing is written. Dropped images are never included.
+
+### GIST
+
+Gist sync moves a setup between different browsers, which profile sync cannot do. It goes through a secret GitHub Gist.
 
 Make a [classic personal access token](https://github.com/settings/tokens) with **only** the `gist` scope, give it an expiry, and paste it into the token field. Then:
 
@@ -130,9 +138,9 @@ On the second browser, paste the same token and the same gist ID, then PULL.
 
 PUSH overwrites the gist, PULL overwrites what is local. The line above the buttons shows when this browser last synced.
 
-**The token never leaves the browser you typed it into**: it is excluded from the synced payload and from the `10 CONFIG` export, so sharing a config cannot leak it. Treat the ID as semi-private and type it into each browser by hand. **Dropped images do not sync**, since they are data URLs living in a separate localStorage key.
+**The token never leaves the browser you typed it into**: it is excluded from both synced payloads and from the `10 CONFIG` export, so sharing a config cannot leak it. Treat the ID as semi-private and type it into each browser by hand. **Dropped images do not sync** on either path, since they are data URLs living in a separate localStorage key.
 
-The token is stored in plain localStorage, which anyone with access to that browser profile can read. localStorage is also shared across an origin: every site under the same `username.github.io` shares one store, so any other GitHub Pages site on that account could read a token pasted into a Pages-hosted copy. Keep sync to the extension or a locally opened copy.
+The token is stored in plain localStorage, which anyone with access to that browser profile can read. localStorage is also shared across an origin: every site under the same `username.github.io` shares one store. Any other GitHub Pages site on that account could therefore read a token pasted into a Pages-hosted copy. Keep gist sync to the extension or a locally opened copy.
 
 ## LICENSE
 
