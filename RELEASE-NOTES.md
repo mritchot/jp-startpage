@@ -12,6 +12,8 @@ Paste-ready body for the GitHub release. Replaced at each release.
 
 **Browser profile sync.** `11 SYNC` has two tabs. `PROFILE` uses the browser's own extension storage, which Chrome and Firefox replicate across a signed-in profile: turn it on, and every machine running the extension stays level without a token. `GIST` is unchanged and still the way to move a setup between different browsers. Export and import are unchanged.
 
+**A quieter config tray.** The tray no longer explains itself. Every instruction has moved to the README, which now documents each control and every status line the tray can show. What remains on screen is live status only.
+
 ---
 
 ## Install
@@ -45,7 +47,7 @@ Manual install is the same on all four: Developer mode, then *Load unpacked*.
 
 ## Notes on profile sync
 
-Profile sync needs the extension. A copy opened from disk or served from GitHub Pages has no extension storage and reports `EXTENSION ONLY`; use the export file there.
+Profile sync needs the extension. A copy opened from disk or served from GitHub Pages has no extension storage, reports `UNAVAILABLE`, and answers `EXTENSION ONLY` if you press the buttons. Use the export file there.
 
 Chrome needs you signed in with sync on. Firefox needs a Firefox Account with **Add-ons** ticked in `about:preferences` → Sync. Without it Firefox still stores the data, but never sends it anywhere.
 

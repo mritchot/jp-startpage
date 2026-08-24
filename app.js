@@ -953,8 +953,8 @@ function psReconcile() {
 }
 
 function psStamp() {
-  if (!psAvailable()) return 'PROFILE SYNC NEEDS THE EXTENSION';
-  if (!S.profileSync) return 'OFF · SETTINGS STAY ON THIS MACHINE';
+  if (!psAvailable()) return 'UNAVAILABLE';
+  if (!S.profileSync) return 'OFF';
   if (!S.profileAt) return 'ON · NOTHING SAVED YET';
   var d = new Date(S.profileAt), p = function (n) { return String(n).padStart(2, '0'); };
   return 'SAVED ' + d.getFullYear() + '.' + p(d.getMonth() + 1) + '.' + p(d.getDate()) +
@@ -1566,7 +1566,7 @@ function colorControl(kind) {
   ];
 }
 function sec(cls, kids) { return h('div', { c: 'sec' + (cls ? ' ' + cls : '') }, kids); }
-function note(t, tall) { return h('div', { c: 'note' + (tall ? ' tall' : ''), t: t }); }
+function note(t) { return h('div', { c: 'note', t: t }); }
 
 function snapFocus() {
   var a = document.activeElement;
@@ -1722,8 +1722,7 @@ function renderTray() {
   /* 01 COLOR */
   var s01 = sec('wide', [head('01 COLOR · 色')]
     .concat(colorControl('accent'))
-    .concat(colorControl('ground'))
-    .concat([note('HEX SETS THE ' + (_inv ? 'LIGHT' : 'DARK') + ' MODE ONLY')]));
+    .concat(colorControl('ground')));
 
   /* 02 DISPLAY */
   var s02 = sec(null, [
@@ -1799,20 +1798,12 @@ function renderTray() {
     btn(S.greetMode === 'time' ? 'BY TIME OF DAY' : 'ONE GREETING', function () {
       set({ greetMode: S.greetMode === 'time' ? 'static' : 'time' });
     }),
-    greetBody,
-    S.greetMode === 'time'
-      ? h('div', { s: 'display:flex;gap:8px' }, [
-          h('span', { c: 'note', s: 'width:76px;flex:none;letter-spacing:1px', t: 'START HOUR' }),
-          h('span', { c: 'note', t: 'TEXT' })
-        ])
-      : note('TEXT')
+    greetBody
   ]);
 
   /* 04 WEATHER */
   var unitBtn = btn('°' + S.unit, function () { set({ unit: S.unit === 'C' ? 'F' : 'C' }); },
     { s: 'width:64px;flex:none;letter-spacing:1px' });
-  var geoNote = { manual: '', approx: 'POSITION FROM IP ADDRESS · NOTHING TO ALLOW',
-                  precise: 'THE BROWSER WILL ASK TO SHARE YOUR LOCATION' }[S.geoMode] || '';
   var s04 = sec(null, [
     head('04 WEATHER · 天気'),
     h('div', { c: 'row' }, GEOMODES.map(function (o) {
@@ -1833,8 +1824,7 @@ function renderTray() {
       : h('div', { c: 'row' }, [
           h('div', { c: 'in', s: 'color:var(--dim)', t: WX_LABEL || 'LOCATING…' }),
           unitBtn
-        ]),
-    geoNote ? note(geoNote) : null
+        ])
   ]);
 
   /* 05 QUOTE */
@@ -1861,8 +1851,6 @@ function renderTray() {
         { c: 'tiny', ph: 'raw gist URL', s: 'font-size:11px;padding:9px 10px' }),
       D.pull
     ]) : null,
-    (S.quoteSource === 'custom' || S.quoteSource === 'url')
-      ? note('AUTHOR, QUOTE TEXT · ONE PER LINE') : null,
     h('div', { c: 'row mid' }, [
       h('span', { c: 'lab', t: 'ROTATE' }),
       h('div', { s: 'flex:1;display:flex;gap:5px' }, SCHED.map(function (o) {
@@ -1912,7 +1900,6 @@ function renderTray() {
         { c: 'key' + (dupeKeys(S.cats)[String(ec.key || '').toLowerCase()] ? ' bad' : ''), max: '1' })
     ]),
     D.linksBox,
-    (ec.links || []).length ? note('CLICK A ROW TO EDIT · DRAG TO REORDER') : null,
     h('div', { s: 'display:flex;gap:6px;margin-top:4px' }, [
       field('nl', S.nl, function (e) { setState({ nl: e.target.value }); }, { c: 'tiny', ph: 'label' }),
       field('nk', S.nk, function (e) { setState({ nk: e.target.value.slice(0, 1).toLowerCase() }); },
@@ -1961,7 +1948,6 @@ function renderTray() {
       btn('FIT', function () { patchImg({ s: 1, x: 0, y: 0 }); },
         { s: 'width:52px;flex:none;padding:7px;font-size:9px;letter-spacing:1px' })
     ]),
-    note('DRAG INSIDE THE BOX TO REPOSITION'),
     h('div', { c: 'row mid' }, [
       h('span', { c: 'lab', t: 'ROTATE' }),
       h('div', { s: 'flex:1;display:flex;gap:5px' }, SCHED.map(function (o) {
@@ -1986,8 +1972,7 @@ function renderTray() {
         { s: 'width:96px;flex:none' })
     ]),
     field('engcustom', S.engineCustom, function (e) { set({ engineCustom: e.target.value }); },
-      { c: 'tiny', ph: 'https://example.com/search?q=%s' }),
-    note('CUSTOM ENGINE · %s IS THE QUERY · PREFIX c')
+      { c: 'tiny', ph: 'https://example.com/search?q=%s' })
   ]);
 
   /* 09 TAB */
@@ -1995,8 +1980,7 @@ function renderTray() {
     head('09 TAB · タブ'),
     h('div', { c: 'row' }, [
       field('tabtitle', S.tabTitle, function (e) { set({ tabTitle: e.target.value }, true); }),
-    ]),
-    note('BROWSER TAB TITLE')
+    ])
   ]);
 
   /* 10 CONFIG */
@@ -2006,7 +1990,7 @@ function renderTray() {
       btn('EXPORT', cfgExport, { f: 1 }),
       btn('IMPORT', function () { if (D.cfgFileIn) D.cfgFileIn.click(); }, { f: 1 })
     ]),
-    note(S.cfgMsg || 'SAVES AND LOADS A .JSON FILE · IMAGES NOT INCLUDED')
+    S.cfgMsg ? note(S.cfgMsg) : null
   ]);
 
   /* 11 SYNC */
@@ -2030,8 +2014,7 @@ function renderTray() {
         btn('PUSH', syncPush, { f: 1 }),
         btn('PULL', syncPull, { f: 1 })
       ]),
-      note(_syncMsg || syncStamp()),
-      note('MOVES A SETUP BETWEEN BROWSERS · TOKEN NEVER LEAVES THIS ONE')
+      note(_syncMsg || syncStamp())
     ];
   } else {
     var live = psAvailable();
@@ -2048,10 +2031,7 @@ function renderTray() {
         btn('PUSH', function () { psPush(true); }, { f: 1 }),
         btn('PULL', function () { psPull(true); }, { f: 1 })
       ]),
-      note(_psMsg || psStamp()),
-      note(live
-        ? 'SAVES TO THIS BROWSER PROFILE · NEEDS SYNC SIGNED IN, AND ADD-ONS TICKED ON FIREFOX'
-        : 'INSTALL THE EXTENSION TO SYNC · EXPORT AND IMPORT STILL WORK', true)
+      (_psMsg || psStamp()) ? note(_psMsg || psStamp()) : null
     ];
   }
 
