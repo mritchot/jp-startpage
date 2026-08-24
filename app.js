@@ -555,27 +555,25 @@ var GEOMODES = [
    platform that owns it, synchronously inside the click, and any API absence
    or throw falls through as granted so neither browser can lose weather over
    a permission call the platform does not support. */
-function askGeo(cb) {
+/* One request, because permissions.request() is only honoured inside the user
+   gesture that started it — a second call from the first one's callback is
+   already outside it and Firefox rejects it. Chrome rejects a request object
+   carrying data_collection, so each browser gets only the keys it knows. */
+function askGeo(precise, cb) {
+  var done = psOnce(cb);
   try {
-    if (typeof browser !== 'undefined' && browser.permissions && browser.permissions.request) {
-      browser.permissions.request({ data_collection: ['locationInfo'] })
-        .then(function (ok) { cb(ok !== false); }, function () { cb(true); });
-      return;
-    }
-  } catch (e) {}
-  cb(true);
-}
-function askPrecise(cb) {
-  try {
-    if (typeof browser === 'undefined' && typeof chrome !== 'undefined' &&
-        chrome.permissions && chrome.permissions.request) {
-      chrome.permissions.request({ permissions: ['geolocation'] }, function (ok) {
-        cb(!!ok && !(chrome.runtime && chrome.runtime.lastError));
-      });
-      return;
-    }
-  } catch (e) {}
-  cb(true);
+    var ff = typeof browser !== 'undefined' && browser.permissions && browser.permissions.request;
+    var api = ff ? browser : (typeof chrome !== 'undefined' && chrome.permissions && chrome.permissions.request ? chrome : null);
+    if (!api) { done(true); return; }
+    var req = {};
+    if (precise) req.permissions = ['geolocation'];
+    if (ff) req.data_collection = ['locationInfo'];
+    if (!req.permissions && !req.data_collection) { done(true); return; }
+    var r = api.permissions.request(req, function (ok) {
+      done(!!ok && !(api.runtime && api.runtime.lastError));
+    });
+    if (r && typeof r.then === 'function') r.then(function (ok) { done(ok !== false); }, function () { done(true); });
+  } catch (e) { done(true); }
 }
 function geoAllowed(cb) {
   try {
@@ -1910,15 +1908,11 @@ function renderTray() {
     h('div', { c: 'row' }, GEOMODES.map(function (o) {
       return h('div', { c: 'opt' + (S.geoMode === o.id ? ' on' : ''), t: o.label, btn: 1, on: { click: function () {
         if (o.id === 'manual') { WX_LABEL = ''; set({ geoMode: 'manual' }); fetchWeather(true); return; }
-        askGeo(function (ok) {
+        askGeo(o.id === 'precise', function (ok) {
           if (!ok) return;
-          var go = function (ok2) {
-            if (!ok2) return;
-            WX_LABEL = '';
-            set({ geoMode: o.id });
-            fetchWeather(true);
-          };
-          if (o.id === 'precise') askPrecise(go); else go(true);
+          WX_LABEL = '';
+          set({ geoMode: o.id });
+          fetchWeather(true);
         });
       } } });
     })),
