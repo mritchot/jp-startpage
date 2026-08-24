@@ -22,7 +22,7 @@ Paste-ready body for the GitHub release. Replaced at each release.
 
 ### Firefox
 
-**Signed build.** Download `jp-startpage-1.1.0.xpi` from this release. Opening that link in Firefox installs it straight away. If you saved the file instead, drag it onto a Firefox window, or use `about:addons` → gear icon → *Install Add-on From File*.
+**Add-ons.** Install from [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/jp-startpage/). This build updates itself.
 
 **Manual install.** Download the source, then open `about:debugging` → *This Firefox* → *Load Temporary Add-on* and pick `manifest.json`. Firefox drops temporary add-ons on restart, so this route is for development.
 
@@ -36,14 +36,13 @@ Needs Firefox 142 or later.
 
 ### Other Chromium browsers
 
-The Chrome build runs on Edge, Brave and Vivaldi. Each needs one thing set first, and Opera cannot run it as a new tab at all.
+The Chrome build runs on Edge, Brave and Vivaldi.
 
 - **Edge** — open the Chrome Web Store listing and accept *Allow extensions from other stores* when Edge offers it. The new tab override then works.
 - **Brave** — installs from the Chrome Web Store and honors the new tab override.
 - **Vivaldi** — installs from the Chrome Web Store, then tick *Settings → Tabs → New Tab Page → Start Page → Controlled by Extension*. Vivaldi sometimes shows its own Start Page again after a full restart.
-- **Opera** — ignores the new tab override entirely. Point Opera's startup page at the [live preview](https://mritchot.github.io/jp-startpage/) instead.
 
-Manual install is the same on all four: Developer mode, then *Load unpacked*.
+Manual install is the same on all three: Developer mode, then *Load unpacked*.
 
 ---
 
@@ -55,4 +54,6 @@ Chrome needs you signed in with sync on. Firefox needs a Firefox Account with **
 
 The browser caps this storage at 100 KB. A setup past that reports `TOO LARGE TO SYNC` and writes nothing. Dropped images are never included, on either sync path.
 
-This release adds the `storage` permission, which both browsers grant without a prompt, and an optional `geolocation` permission that Chrome asks about only if you pick `PRECISE` weather.
+This release adds the `storage` permission, which both browsers grant without a prompt, and an optional `geolocation` permission asked for only when you pick `PRECISE` weather.
+
+**Firefox users on the old self-distributed build:** this is a new add-on with a new id, so it will not update the old one. Remove the previous copy from `about:addons` and install from the link above.
