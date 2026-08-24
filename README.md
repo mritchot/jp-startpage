@@ -233,6 +233,10 @@ The line under the buttons reads `NEVER SYNCED`, or `LAST SYNC` and a timestamp.
 
 The token is stored in plain localStorage, which anyone with access to that browser profile can read. localStorage is also shared across an origin: every site under the same `username.github.io` shares one store. Any other GitHub Pages site on that account could therefore read a token pasted into a Pages-hosted copy. Keep gist sync to the extension or a locally opened copy.
 
+## PRIVACY
+
+No accounts, no analytics, no server. Nothing reaches me. What leaves your machine, and only when you ask for it, is set out in [PRIVACY.md](PRIVACY.md).
+
 ## LICENSE
 
 MIT. See [LICENSE](LICENSE).
