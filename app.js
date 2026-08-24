@@ -311,6 +311,35 @@ function computeSizing() {
   return { sc: sc, H: Math.round(H), B: B, capped: capped };
 }
 
+/* Width of one open pane, kept in step with .pane in the stylesheet. The rail
+   reserves this whether or not a panel is open, so opening one moves nothing. */
+var PANE_W = 244;
+var RAIL_EDGE = 40;
+
+/* Span from the first child to the last, which counts every gap and margin
+   exactly. Both offsets carry the rail's own padding, so it cancels out and the
+   result cannot feed back into the padding this function is about to write. */
+function railNatural() {
+  var kids = D.rail && D.rail.children;
+  if (!kids || !kids.length) return 0;
+  var first = kids[0], last = kids[kids.length - 1];
+  return (last.offsetLeft + last.offsetWidth) - first.offsetLeft;
+}
+
+/* Centre the composition on its closed width plus one reserved pane. Opening a
+   panel consumes the reserve instead of pushing everything left. Below the fit
+   threshold the reserve is abandoned and the rail scrolls from its left edge. */
+function applyRailPad(el) {
+  var closed = railNatural() - (S.openId ? PANE_W : 0);
+  var want = closed + PANE_W;
+  var room = (D.rail && D.rail.clientWidth) || window.innerWidth || 0;
+  var pad = Math.floor((room - want) / 2);
+  var fits = pad >= RAIL_EDGE;
+  el.style.setProperty('--railPad', (fits ? pad : RAIL_EDGE) + 'px');
+  el.style.setProperty('--railPadR', fits ? '0px' : '140px');
+  railFades();
+}
+
 function applySizing() {
   var el = D.root; if (!el) return;
   var z = computeSizing(), sc = z.sc, B = z.B;
@@ -331,6 +360,7 @@ function applySizing() {
   Sv('--cmdEng', S.searchEnabled ? '74px' : '0px');
   var above = Math.floor(((window.innerHeight || 800) - z.H) / 2) - 34 - 24;
   Sv('--quoteLines', String(Math.max(2, Math.floor(above / 22.2))));
+  applyRailPad(el);
   applyImage();
 }
 
@@ -1019,6 +1049,7 @@ function buildShell() {
   D.panels = h('div', { c: 'panels' });
 
   D.rail = h('div', { c: 'rail' }, [clock, D.imgBox, greet, D.panels]);
+  D.rail.addEventListener('scroll', railFades, { passive: true });
 
   D.cfgBtn = h('div', { c: 'cfg-btn', btn: 1, al: 'Config', on: { click: function () {
     setState({ trayOpen: !S.trayOpen });
@@ -1121,11 +1152,12 @@ function revealOpen() {
   var n = D.panels.querySelector('[data-cid="' + S.openId + '"]');
   if (!n) return;
   var r = n.getBoundingClientRect(), rail = D.rail.getBoundingClientRect();
-  var pad = 24, at = D.rail.scrollLeft, target = at;
+  var pad = 68, at = D.rail.scrollLeft, target = at;   /* clears the edge fade */
   if (r.right > rail.right - pad) target = at + (r.right - (rail.right - pad));
   else if (r.left < rail.left + pad) target = at - ((rail.left + pad) - r.left);
   if (target === at) return;
   D.rail.scrollLeft = target;   /* plain write: smooth scrollTo is unreliable here */
+  railFades();
 }
 
 function renderPanels() {
@@ -1135,7 +1167,9 @@ function renderPanels() {
   clear(D.panels);
   D.panels.appendChild(frag(S.cats.map(buildCat)));
   playFlip();
+  if (D.root) applyRailPad(D.root);
   revealOpen();
+  railFades();
 }
 
 function reflowPanels() {
@@ -1148,6 +1182,16 @@ function reflowPanels() {
     D.panels.appendChild(n);
   });
   playFlip();
+}
+
+/* The rail hides its scrollbar, so overflow needs its own signal: a gradient
+   at whichever edge still has content behind it. */
+function railFades() {
+  if (!D.rail || !D.root) return;
+  var max = D.rail.scrollWidth - D.rail.clientWidth;
+  var at = D.rail.scrollLeft;
+  D.root.style.setProperty('--fadeL', at > 4 ? '64px' : '0px');
+  D.root.style.setProperty('--fadeR', at < max - 4 ? '64px' : '0px');
 }
 
 function catIndex(node) { return Array.prototype.indexOf.call(D.panels.children, node); }

@@ -61,7 +61,9 @@ input,select,button,textarea{font-family:'IBM Plex Mono',ui-monospace,monospace}
 
 /* ---- rail ---- */
 .rail{height:100vh;display:flex;align-items:center;gap:16px;overflow-x:auto;overflow-y:hidden;
-  scrollbar-width:none;padding-left:max(40px,calc(50vw - 419px));padding-right:140px;box-sizing:border-box}
+  scrollbar-width:none;padding-left:var(--railPad,40px);padding-right:var(--railPadR,140px);box-sizing:border-box;
+  -webkit-mask-image:linear-gradient(to right,transparent 0,#000 var(--fadeL,0px),#000 calc(100% - var(--fadeR,0px)),transparent 100%);
+  mask-image:linear-gradient(to right,transparent 0,#000 var(--fadeL,0px),#000 calc(100% - var(--fadeR,0px)),transparent 100%)}
 .rail::-webkit-scrollbar{display:none}
 .box{height:var(--boxHc,320px);border:1px solid var(--line);background:var(--panel);box-sizing:border-box;flex:none}
 .vt{writing-mode:vertical-rl;text-orientation:upright;white-space:nowrap}
