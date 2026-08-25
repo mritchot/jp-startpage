@@ -4,7 +4,7 @@ A browser startpage designed as a pseudo-Japanese terminal interface.
 
 Has full keyboard input. Press a category key to open its panel, press a link key to follow it, press `/` to search.
 
-Last Update: 24/08/26
+Last Update: 25/08/26
 
 [LIVE PREVIEW](https://mritchot.github.io/jp-startpage/)
 
@@ -198,8 +198,6 @@ The browser rejected the write, most often because its own sync storage is full.
 
 You pressed a button where there is no extension storage.
 
-A button showing `···` is waiting on the network.
-
 Profile sync needs the extension. A copy opened from disk has no extension storage, reports `UNAVAILABLE`, and answers `EXTENSION ONLY` if you press the buttons. Use the export file there instead. Chrome needs you signed in with sync on. Firefox needs a Firefox Account with **Add-ons** ticked in `about:preferences` → Sync.
 
 The browser caps this storage at 100 KB. A setup past that reports `TOO LARGE TO SYNC` and nothing is written. Dropped images are never included.
@@ -250,7 +248,7 @@ The token is stored in plain localStorage, which anyone with access to that brow
 
 ## PRIVACY
 
-No accounts, no analytics, no server. Nothing reaches me. What leaves your machine, and only when you ask for it, is set out in [PRIVACY.md](PRIVACY.md).
+No accounts, no analytics, no server. Nothing reaches me. What leaves your machine is set out in [PRIVACY.md](PRIVACY.md).
 
 ## AI DILIGENCE
 

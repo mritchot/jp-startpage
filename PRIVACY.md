@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**JP-Startpage** · last updated 24 August 2026
+**JP-Startpage** · last updated 25 August 2026
 
 JP-Startpage has no server, no accounts, and no analytics. The developer
 receives nothing. Nothing you do in the extension is reported anywhere.
@@ -24,10 +24,12 @@ included. Profile sync is off until you switch it on.
 Four features contact other services. Each is described below, and none of them
 sends anything to the developer.
 
-**Weather.** When the weather panel is on, the extension requests a forecast
-from [Open-Meteo](https://open-meteo.com).
+**Weather.** The extension requests a forecast from
+[Open-Meteo](https://open-meteo.com) to show current conditions. A new tab
+triggers the request, unless a recent forecast is cached. It repeats every 30
+minutes while the page is open. What it sends depends on the mode:
 
-- `MANUAL`, the default, sends only the city name you typed.
+- `MANUAL`, the default, sends only the city name — `TOKYO` until you change it.
 - `APPROX` first asks [ipapi.co](https://ipapi.co) to estimate your position
   from your IP address. Any web request necessarily discloses your IP to the
   service you contact; this one uses it to return an approximate city.
