@@ -112,7 +112,7 @@ The line under the buttons reports the last action: `SAVED`, `LOADED`, `NOT A CO
 
 ## THE TERMINAL LINE
 
-When focused on the page, press a panel's letter to open it, then a link's letter to follow it.
+The browser puts keyboard focus in the address bar on every new tab; the page cannot take it. Press `TAB` once to move focus into the page. From there, press a panel's letter to open it, then a link's letter to follow it.
 
 Press `/` and it types a slash, after which everything you type is text. `ENTER` searches, `BACKSPACE` deletes, `ESC` clears. A single letter right after the slash picks an engine for that one search — `/w pixel art` goes to Wikipedia.
 
@@ -220,20 +220,43 @@ PUSH overwrites the gist, PULL overwrites what is local.
 
 The line under the buttons reads `NEVER SYNCED`, or `LAST SYNC` and a timestamp. After an action it reports the result:
 
-- `PUSHED` or `PULLED` — it worked.
-- `NO TOKEN` or `NO GIST ID` — a field is empty.
-- `BAD TOKEN` — GitHub rejected the token; it has expired or lacks the `gist` scope.
-- `FORBIDDEN` — the token is valid but not allowed to do this.
-- `GIST NOT FOUND` — the ID is wrong, or the gist holds no `jp-startpage.json`.
-- `FAILED` — the request did not complete, usually the network.
+`PUSHED` or `PULLED`
 
-**The token never leaves the browser you typed it into**: it is excluded from both synced payloads and from the `10 CONFIG` export, so sharing a config cannot leak it. Treat the ID as semi-private and type it into each browser by hand. **Dropped images do not sync** on either path, since they are data URLs living in a separate localStorage key.
+It worked.
+
+`NO TOKEN` or `NO GIST ID`
+
+A field is empty.
+
+`BAD TOKEN`
+
+GitHub rejected the token; it has expired or lacks the `gist` scope.
+
+`FORBIDDEN`
+
+The token is valid but not allowed to do this.
+
+`GIST NOT FOUND`
+
+The ID is wrong, or the gist holds no `jp-startpage.json`.
+
+`FAILED`
+
+The request did not complete, usually the network.
+
+**The token never leaves the browser you typed it into**: it is excluded from both synced payloads and from the `10 CONFIG` export, so sharing a config cannot leak it. Treat the ID as semi-private and type it into each browser by hand. **Dropped images do not sync** on either path; they stay in the browser they were dropped into.
 
 The token is stored in plain localStorage, which anyone with access to that browser profile can read. localStorage is also shared across an origin: every site under the same `username.github.io` shares one store. Any other GitHub Pages site on that account could therefore read a token pasted into a Pages-hosted copy. Keep gist sync to the extension or a locally opened copy.
 
 ## PRIVACY
 
 No accounts, no analytics, no server. Nothing reaches me. What leaves your machine, and only when you ask for it, is set out in [PRIVACY.md](PRIVACY.md).
+
+## AI DILIGENCE
+
+I built this with AI assistance. The interface started in Claude Design, and Anthropic's Claude wrote most of the code under my direction. I set the behavior, reviewed the changes, and tested in Chrome and Firefox. A review pass before the first release found 42 defects, all fixed.
+
+The extension is provided as is, with no warranty. All of it is in this repository, so read the source and judge it yourself.
 
 ## LICENSE
 
