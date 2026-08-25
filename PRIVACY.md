@@ -1,22 +1,22 @@
 # Privacy Policy
 
-**JP-Startpage** · last updated 25 August 2026
+**JP-Startpage** · last updated 26 August 2026
 
 JP-Startpage has no server, no accounts, and no analytics. The developer
-receives nothing. Nothing you do in the extension is reported anywhere.
+receives nothing.
 
 ## What is stored, and where
 
 Your browser's local storage holds your settings on your own machine: panels,
 links, hotkeys, colors, greeting, weather city, search engines and quotes.
-Dropped images sit beside them in the browser's IndexedDB, also on your own
+Images are stored in the browser's IndexedDB, also on your own
 machine.
 
-If you turn on **profile sync**, those settings are also written to your
-browser's own extension storage, which Chrome and Firefox replicate between
-machines signed into your account. That replication is handled entirely by the
+If you turn on **profile sync**, settings are also written to your
+browser's own extension storage, which Chrome and Firefox sync between
+machines signed into your account. That sync is handled entirely by the
 browser. The data travels through your browser vendor, not through the
-developer, and there is no copy anywhere else. Dropped images are never
+developer, and there is no copy anywhere else. Images are never
 included. Profile sync is off until you switch it on.
 
 ## What leaves your machine
@@ -52,8 +52,7 @@ fetches that file from wherever you pointed it.
 **Gist sync.** Only if you use it. Your settings are written to a secret GitHub
 Gist under a personal access token that you create and paste in. The token is
 stored solely in your browser, and is deliberately excluded from both the
-config export and every synced payload, so sharing a configuration cannot leak
-it.
+config export and every synced payload.
 
 ## What is never collected
 
@@ -70,7 +69,7 @@ purposes, and never used to assess creditworthiness or for lending.
 Uninstalling the extension removes its local storage and its image store.
 `RESET DEFAULTS` in the config tray clears everything without uninstalling.
 Turning profile sync off stops further writes. To clear what your browser has
-already replicated, use your browser's own sync data controls.
+already synced, use your browser's own sync data controls.
 
 ## Source
 
