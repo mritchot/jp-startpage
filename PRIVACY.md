@@ -8,8 +8,9 @@ receives nothing. Nothing you do in the extension is reported anywhere.
 ## What is stored, and where
 
 Your settings — panels, links, hotkeys, colors, greeting, weather city, search
-engines, quotes and images — are held in your browser's local storage on your
-own machine.
+engines and quotes — are held in your browser's local storage on your own
+machine. Dropped images are held beside them in the browser's IndexedDB, also
+on your own machine.
 
 If you turn on **profile sync**, those settings are also written to your
 browser's own extension storage, which Chrome and Firefox replicate between
@@ -63,8 +64,8 @@ purposes, and never used to assess creditworthiness or for lending.
 
 ## Removing your data
 
-Uninstalling the extension removes its local storage. `RESET DEFAULTS` in the
-config tray clears everything without uninstalling. Turning profile sync off
+Uninstalling the extension removes its local storage and its image store.
+`RESET DEFAULTS` in the config tray clears everything without uninstalling. Turning profile sync off
 stops further writes; to clear what your browser already replicated, use your
 browser's own sync data controls.
 

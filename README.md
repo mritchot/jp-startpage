@@ -92,9 +92,7 @@ The hotkey is highlighted inside the label as `/g/mail`, and leaving it blank us
 
 `ROTATE` changes the image on a schedule: `OPEN` every time the page loads, then `HOUR`, `DAY`, `WEEK`, or `OFF` to leave it alone.
 
-Images are stored as data URLs in localStorage, so a handful of large ones will fill it. The caption in the corner of the box reads `NO IMAGE` when empty, otherwise the position and the rotation setting. It reads `STORAGE FULL` when localStorage refuses the last image.
-
-I may try to look for a more elegant solution on this later.
+Images are stored in the browser's IndexedDB on your machine, so capacity is bounded by your disk rather than a fixed quota. The caption in the corner of the box reads `NO IMAGE` when empty, otherwise the position and the rotation setting. `STORAGE FULL` means the browser refused the last image; `STORAGE ERROR` means the image store would not open or an image's data is gone.
 
 **08 SEARCH · 検索**
 

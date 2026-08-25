@@ -373,10 +373,109 @@ function applySizing() {
 var _bucket;
 var _storeWarn = '';
 
+/* Binaries live as Blobs in IndexedDB; IMG_KEY keeps only the small metadata
+   array. A null from idbAll means the READ failed, which must never be
+   mistaken for an empty store — the same contract psGet enforces. */
+var IDB_NAME = 'jp-startpage', IDB_STORE = 'images';
+var _idb = null, _idbBroken = false;
+
+function idbOpen(cb) {
+  if (_idb) return cb(_idb);
+  if (_idbBroken || typeof indexedDB === 'undefined') return cb(null);
+  var req;
+  try { req = indexedDB.open(IDB_NAME, 1); }
+  catch (e) { _idbBroken = true; return cb(null); }
+  req.onupgradeneeded = function () {
+    if (!req.result.objectStoreNames.contains(IDB_STORE)) req.result.createObjectStore(IDB_STORE);
+  };
+  req.onsuccess = function () {
+    _idb = req.result;
+    _idb.onclose = function () { _idb = null; };
+    cb(_idb);
+  };
+  req.onerror = function () { _idbBroken = true; cb(null); };
+}
+
+function idbTx(mode, run, done) {
+  idbOpen(function (db) {
+    if (!db) return done(false, null);
+    var tx;
+    try { tx = db.transaction(IDB_STORE, mode); }
+    catch (e) { return done(false, null); }
+    var out = run(tx.objectStore(IDB_STORE));
+    tx.oncomplete = function () { done(true, out); };
+    tx.onerror = tx.onabort = function () { done(false, tx.error); };
+  });
+}
+
+function idbPut(id, blob, cb) {
+  idbTx('readwrite', function (st) { st.put(blob, id); }, function (ok, res) {
+    cb(ok, ok ? '' : (res && res.name === 'QuotaExceededError' ? 'STORAGE FULL' : 'STORAGE ERROR'));
+  });
+}
+
+function idbDel(id) {
+  idbTx('readwrite', function (st) { st.delete(id); }, function () {});
+}
+
+function idbClear(cb) {
+  idbTx('readwrite', function (st) { st.clear(); }, function () { if (cb) cb(); });
+}
+
+function idbAll(cb) {
+  idbTx('readonly', function (st) {
+    var map = {};
+    var cur = st.openCursor();
+    cur.onsuccess = function () {
+      var c = cur.result;
+      if (c) { map[c.key] = c.value; c.continue(); }
+    };
+    return map;
+  }, function (ok, res) { cb(ok ? res : null); });
+}
+
+/* Object URLs are runtime-only handles to the blobs; entries never carry
+   them. imgSrc falls back to a legacy data-URL src until migration lands. */
+var _urls = {};
+
+function imgSrc(im) { return _urls[im.id] || im.src || ''; }
+
+function holdUrl(id, blob) {
+  if (_urls[id]) return;
+  try { _urls[id] = URL.createObjectURL(blob); } catch (e) {}
+}
+
+function dropUrl(id) {
+  if (!_urls[id]) return;
+  try { URL.revokeObjectURL(_urls[id]); } catch (e) {}
+  delete _urls[id];
+}
+
+/* FileReader only ever produced ";base64," data URLs, so migration handles
+   just that shape. atob keeps this working on file://, where fetch of a
+   data: URL is blocked. */
+function dataToBlob(u) {
+  try {
+    var i = u.indexOf(',');
+    var head = u.slice(0, i);
+    if (!/;base64$/.test(head)) return null;
+    var mime = (head.match(/^data:([^;,]+)/) || [])[1] || 'image/png';
+    var bin = atob(u.slice(i + 1));
+    var arr = new Uint8Array(bin.length);
+    for (var j = 0; j < bin.length; j++) arr[j] = bin.charCodeAt(j);
+    return new Blob([arr], { type: mime });
+  } catch (e) { return null; }
+}
+
 function curImg() { return S.imgs[S.imgIdx] || null; }
 
 function saveImages(imgs) {
-  try { localStorage.setItem(IMG_KEY, JSON.stringify(imgs)); _storeWarn = ''; }
+  var meta = imgs.map(function (im) {
+    var o = { id: im.id, name: im.name, s: im.s, x: im.x, y: im.y };
+    if (im.src) o.src = im.src;   /* legacy entry, blob not stored yet */
+    return o;
+  });
+  try { localStorage.setItem(IMG_KEY, JSON.stringify(meta)); _storeWarn = ''; }
   catch (e) { _storeWarn = 'STORAGE FULL'; }
 }
 
@@ -388,34 +487,76 @@ function setImgs(imgs, idx) {
 }
 
 function loadImages() {
-  var imgs = [];
-  try { imgs = JSON.parse(localStorage.getItem(IMG_KEY) || '[]') || []; } catch (e) {}
-  if (!imgs.length) { applyImage(); return; }
+  var raw = null, stored = [];
+  try { raw = localStorage.getItem(IMG_KEY); stored = JSON.parse(raw || '[]') || []; }
+  catch (e) { stored = []; }
+  if (!stored.length) {
+    applyImage();
+    if (!raw) idbClear();   /* no metadata at all: purge any orphaned blobs */
+    return;
+  }
   var idx = S.imgIdx;
-  if (S.imgSched === 'open' && imgs.length > 1) idx = (idx + 1) % imgs.length;
+  if (S.imgSched === 'open' && stored.length > 1) idx = (idx + 1) % stored.length;
   _bucket = bucketFor(Date.now());
-  setState({ imgs: imgs, imgIdx: Math.min(idx, imgs.length - 1) }, function () {
+  setState({ imgs: stored, imgIdx: Math.min(idx, stored.length - 1) }, function () {
     applyImage(); persist();
   });
+  idbAll(function (map) {
+    if (map === null) {
+      /* Store unreadable. Legacy entries still render from src; nothing on
+         disk changes, so the next boot tries again. */
+      _storeWarn = 'STORAGE ERROR';
+      applyImage(); paint();
+      return;
+    }
+    migrate(map);
+  });
+}
+
+/* One-way and idempotent: a legacy entry keeps its data-URL src until its
+   blob is safely stored, so a failed put loses nothing and retries next
+   boot. */
+function migrate(map) {
+  var dirty = false, lost = false, pending = 0;
+  S.imgs.forEach(function (im) {
+    if (map[im.id]) {
+      holdUrl(im.id, map[im.id]);
+      if (im.src) { delete im.src; dirty = true; }   /* stored last run, strip now */
+      return;
+    }
+    if (!im.src) { lost = true; return; }            /* blob gone, nothing to rebuild from */
+    var blob = dataToBlob(im.src);
+    if (!blob) return;
+    pending++;
+    idbPut(im.id, blob, function (ok) {
+      if (ok) { holdUrl(im.id, blob); delete im.src; dirty = true; }
+      if (--pending === 0) finish();
+    });
+  });
+  if (!pending) finish();
+  function finish() {
+    if (dirty) saveImages(S.imgs);
+    if (lost) _storeWarn = 'STORAGE ERROR';
+    applyImage();
+    if (S.trayOpen) renderTray();
+    paint();
+  }
 }
 
 function ingest(files) {
   var list = Array.prototype.slice.call(files || []).filter(function (f) { return /^image\//.test(f.type); });
   if (!list.length) return;
-  var pending = list.length, added = [];
+  var pending = list.length, added = [], warn = '';
   list.forEach(function (f) {
-    var r = new FileReader();
-    r.onload = function () {
-      added.push({
-        id: 'i' + Date.now() + Math.random().toString(36).slice(2, 6),
-        src: r.result, name: f.name, s: 1, x: 0, y: 0
-      });
-      if (--pending === 0) setImgs(S.imgs.concat(added), S.imgs.length);
-    };
-    r.onerror = function () {
-      if (--pending === 0 && added.length) setImgs(S.imgs.concat(added), S.imgs.length);
-    };
-    r.readAsDataURL(f);
+    var id = 'i' + Date.now() + Math.random().toString(36).slice(2, 6);
+    idbPut(id, f, function (ok, w) {
+      if (ok) { holdUrl(id, f); added.push({ id: id, name: f.name, s: 1, x: 0, y: 0 }); }
+      else warn = w;
+      if (--pending === 0) {
+        if (added.length) setImgs(S.imgs.concat(added), S.imgs.length);
+        if (warn) { _storeWarn = warn; paint(); }
+      }
+    });
   });
 }
 
@@ -455,8 +596,9 @@ function applyImage(live) {
   var el = D.img, hint = D.imgHint;
   if (!el) return;
   var im = live || curImg();
-  if (!im) { el.style.display = 'none'; if (hint) hint.style.display = 'flex'; return; }
-  if (el.getAttribute('src') !== im.src) el.setAttribute('src', im.src);
+  var src = im ? imgSrc(im) : '';
+  if (!src) { el.style.display = 'none'; if (hint) hint.style.display = 'flex'; return; }
+  if (el.getAttribute('src') !== src) el.setAttribute('src', src);
   el.style.display = 'block';
   el.style.transform = 'translate(' + (im.x || 0) + 'px,' + (im.y || 0) + 'px) scale(' + (im.s || 1) + ')';
   if (hint) hint.style.display = 'none';
@@ -2036,13 +2178,15 @@ function renderTray() {
       }, { al: 'Next image', s: 'width:38px;flex:none;font-size:11px;letter-spacing:0' }),
       btn('×', function () {
         if (!S.imgs.length) return;
+        var gone = S.imgs[S.imgIdx];
+        idbDel(gone.id); dropUrl(gone.id);
         setImgs(S.imgs.filter(function (_, i) { return i !== S.imgIdx; }), Math.max(0, S.imgIdx - 1));
       }, { warn: 1, al: 'Delete image', s: 'width:38px;flex:none;font-size:11px;letter-spacing:0' })
     ]),
     h('div', { c: 'thumbs' }, S.imgs.map(function (t, i) {
       return h('div', { c: 'th' + (i === S.imgIdx ? ' on' : ''), btn: 1, al: 'Image ' + (i + 1), on: { click: function () {
         setState({ imgIdx: i }, function () { applyImage(); persist(); });
-      } } }, t.src ? h('img', { a: { src: t.src, alt: '' } }) : null);
+      } } }, imgSrc(t) ? h('img', { a: { src: imgSrc(t), alt: '' } }) : null);
     })),
     h('div', { c: 'row mid' }, [
       h('span', { c: 'lab', t: 'CROP' }),
@@ -2154,7 +2298,12 @@ function renderTray() {
     h('span', { c: 'reset', t: 'RESET DEFAULTS', btn: 1, on: { click: function () {
       if (!window.confirm('Reset every panel, link and setting to defaults?')) return;
       try { localStorage.removeItem(LS_KEY); localStorage.removeItem(IMG_KEY); } catch (e) {}
-      location.reload();
+      /* Wait for the blob store to clear, but never let a hung open leave
+         the confirmed reset unfinished. */
+      var done = false;
+      function go() { if (!done) { done = true; location.reload(); } }
+      idbClear(go);
+      setTimeout(go, 800);
     } } })
   ]);
 
