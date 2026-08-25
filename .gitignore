@@ -11,3 +11,6 @@ MEMORYARCHIVE.md
 
 # Store submission material: packages, screenshots, listing copy
 store-assets/
+
+# Release body, pasted into the GitHub release and rewritten each time
+RELEASE-NOTES.md
