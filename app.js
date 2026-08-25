@@ -728,6 +728,37 @@ function geoAllowed(cb) {
   cb(true);
 }
 
+/* Chrome hands a runtime grant to the extension, not to the document that
+   asked for it, so navigator.geolocation stays inert here until a fresh
+   document loads. _geoAtBoot records what this document started with, which
+   is what tells a grant that lands now apart from one already in place. */
+var _geoAtBoot = null;
+
+/* A settled request() is not proof of a grant. A call that never prompts —
+   no gesture, a key the browser will not take, a throw the catch swallows —
+   still settles, and reading that as success is what left the readout waiting
+   on a permission it never had. geoGranted reads the real state instead.
+   null means the question cannot be answered here, which is a plain web copy
+   with no extension API; the browser prompts for itself there. */
+function geoGranted(cb) {
+  var one = psOnce(cb);
+  try {
+    var api = (typeof browser !== 'undefined' && browser.permissions && browser.permissions.contains) ? browser
+            : ((typeof chrome !== 'undefined' && chrome.permissions && chrome.permissions.contains) ? chrome : null);
+    if (!api) { one(null); return; }
+    var r = api.permissions.contains({ permissions: ['geolocation'] }, function (ok) {
+      one(api.runtime && api.runtime.lastError ? null : !!ok);
+    });
+    if (r && typeof r.then === 'function') r.then(function (ok) { one(!!ok); }, function () { one(null); });
+  } catch (e) { one(null); }
+}
+
+function geoFail(msg) {
+  WX_LABEL = msg;
+  paint();
+  if (S.trayOpen) renderTray();
+}
+
 /* Open-Meteo returns an IANA zone, so the last segment gives a usable place
    name without a second round trip to a reverse geocoder. */
 function tzLabel(tz) {
@@ -784,7 +815,7 @@ function fetchWeather(force) {
 
   if (mode === 'approx') {
     geoAllowed(function (ok) {
-      if (!ok) return;
+      if (!ok) { geoFail('NO CONSENT'); return; }
       /* IP lookup: no permission prompt, city name comes back with the position */
       fetch('https://ipapi.co/json/')
         .then(function (r) { return r.json(); })
@@ -799,14 +830,24 @@ function fetchWeather(force) {
 
   if (mode === 'precise') {
     geoAllowed(function (ok) {
-      if (!ok || !navigator.geolocation) return;
+      if (!ok) { geoFail('NO CONSENT'); return; }
+      if (!navigator.geolocation) { geoFail('NO LOCATION'); return; }
+      /* The option below cannot bound this call. Per the Geolocation spec the
+         timeout covers only the position acquisition, never the wait for
+         permission, so a permission that never resolves fires neither
+         callback and the readout waits forever. This guard is what ends it. */
+      var guard = setTimeout(function () {
+        geoGranted(function (has) { geoFail(has === false ? 'NO PERMISSION' : 'NO LOCATION'); });
+      }, 12000);
       navigator.geolocation.getCurrentPosition(
-        function (pos) { forecastAt(pos.coords.latitude, pos.coords.longitude, '', key).catch(quiet); },
+        function (pos) {
+          clearTimeout(guard);
+          forecastAt(pos.coords.latitude, pos.coords.longitude, '', key).catch(quiet);
+        },
         function () {
           /* denied or unavailable: without this the tray reads LOCATING… forever */
-          WX_LABEL = 'NO LOCATION';
-          paint();
-          if (S.trayOpen) renderTray();
+          clearTimeout(guard);
+          geoFail('NO LOCATION');
         },
         { timeout: 10000, maximumAge: 600000 }
       );
@@ -2054,7 +2095,17 @@ function renderTray() {
           if (!ok) return;
           WX_LABEL = '';
           set({ geoMode: o.id });
-          fetchWeather(true);
+          if (o.id !== 'precise') { fetchWeather(true); return; }
+          geoGranted(function (has) {
+            if (has === false) { geoFail('NO PERMISSION'); return; }
+            /* A grant this document did not load with cannot reach
+               navigator.geolocation, whether it arrived from the request above
+               or from the browser's own settings. Reloading is what makes
+               PRECISE work on the click instead of on the next new tab, and
+               every setting is already persisted by the set() above. */
+            if (has === true && _geoAtBoot === false) { location.reload(); return; }
+            fetchWeather(true);
+          });
         });
       } } });
     })),
@@ -2353,6 +2404,7 @@ function boot() {
   render();
   applyTheme();
   loadImages();
+  geoGranted(function (g) { _geoAtBoot = g; });
   fetchWeather();
 
   window.addEventListener('keydown', handleKey);

@@ -72,7 +72,7 @@ The active band is highlighted. Type size is fixed against the longest of the fo
 
 `MANUAL` looks up whatever city you type. `APPROX` asks [ipapi.co](https://ipapi.co) to place your city level IP address. `PRECISE` uses the browser's location and you will have to accept those permissions. The `°C` / `°F` button converts. Forecasts come from [Open-Meteo](https://open-meteo.com), refreshed every 30 minutes and cached between; coordinates are rounded to about a kilometer before they are sent.
 
-The location readout shows `LOCATING…` while a position is being resolved and `NO LOCATION` when the browser refuses or cannot supply one. On Firefox, switching to `APPROX` or `PRECISE` may also raise the browser's data-collection consent for location; declining it leaves the mode unchanged.
+The location readout shows `LOCATING…` while a position is being resolved, `NO LOCATION` when the browser refuses or cannot supply one, `NO PERMISSION` when the location permission is not granted, and `NO CONSENT` when Firefox's data-collection consent is missing. On Firefox, switching to `APPROX` or `PRECISE` may also raise that consent; declining it at the prompt leaves the mode unchanged. Picking `PRECISE` reloads the page when the location permission is granted while the page is open.
 
 **05 QUOTE · 引用**
 
