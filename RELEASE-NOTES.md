@@ -38,9 +38,11 @@ Needs Firefox 142 or later.
 
 The Chrome build runs on Edge, Brave and Vivaldi.
 
-- **Edge** — open the Chrome Web Store listing and accept *Allow extensions from other stores* when Edge offers it. The new tab override then works.
-- **Brave** — installs from the Chrome Web Store and honors the new tab override.
-- **Vivaldi** — installs from the Chrome Web Store, then tick *Settings → Tabs → New Tab Page → Start Page → Controlled by Extension*. Vivaldi sometimes shows its own Start Page again after a full restart.
+**Edge** installs from the Chrome Web Store once you accept *Allow extensions from other stores* when Edge offers it. The new tab override then works.
+
+**Brave** installs from the Chrome Web Store and honors the new tab override.
+
+**Vivaldi** installs from the Chrome Web Store, then tick *Settings → Tabs → New Tab Page → Start Page → Controlled by Extension*. Vivaldi sometimes shows its own Start Page again after a full restart.
 
 Manual install is the same on all three: Developer mode, then *Load unpacked*.
 

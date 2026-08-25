@@ -58,7 +58,11 @@ A hex sets only the mode you are looking at. To set the other one, switch `02 DI
 
 **02 DISPLAY · 表示**
 
-`SYSTEM` follows your operating system's light or dark setting, or force `LIGHT` / `DARK`. `GRID` toggles the grid texture. `24H` / `12H` sets the clock. `TEXT FITS BOX` shrinks type until it fits the box height; `BOX GROWS TO TEXT` does the reverse. `PANELS TOP` / `PANELS MID` moves the vertical labels and link lists; the clock always stays centered. `TEXT` scales type from 60% to 160%. `HEIGHT` sets box height from 200 to 760px. The readout shows `CAPPED` when the window is too short to honor it (your setting is kept for when there is room again) and `AUTO` in `BOX GROWS TO TEXT` mode, where the content sets the height. `FAVICONS` shows a site icon beside each link; it is off by default. Turning it on asks Google for an icon per domain.
+`SYSTEM` follows your operating system's light or dark setting, or force `LIGHT` / `DARK`. `GRID` toggles the grid texture. `24H` / `12H` sets the clock. `TEXT FITS BOX` shrinks type until it fits the box height; `BOX GROWS TO TEXT` does the reverse. `PANELS TOP` / `PANELS MID` moves the vertical labels and link lists; the clock always stays centered.
+
+`TEXT` scales type from 60% to 160%. `HEIGHT` sets box height from 200 to 760px. The readout shows `CAPPED` when the window is too short to honor it (your setting is kept for when there is room again) and `AUTO` in `BOX GROWS TO TEXT` mode, where the content sets the height.
+
+`FAVICONS` shows a site icon beside each link; it is off by default. Turning it on asks Google for an icon per domain.
 
 **03 GREETING · 挨拶**
 
@@ -70,7 +74,7 @@ The active band is highlighted. Type size is fixed against the longest of the fo
 
 **04 WEATHER · 天気**
 
-`MANUAL` looks up whatever city you type. `APPROX` asks [ipapi.co](https://ipapi.co) to place your city level IP address. `PRECISE` uses the browser's location and you will have to accept those permissions. The `°C` / `°F` button converts. Forecasts come from [Open-Meteo](https://open-meteo.com), refreshed every 30 minutes and cached between; coordinates are rounded to about a kilometer before they are sent.
+`MANUAL` looks up whatever city you type. `APPROX` asks [ipapi.co](https://ipapi.co) to estimate your city from your IP address. `PRECISE` uses the browser's own location and needs the location permission, which the extension asks for when you pick the mode. The `°C` / `°F` button converts. Forecasts come from [Open-Meteo](https://open-meteo.com), refreshed every 30 minutes and cached between; coordinates are rounded to about a kilometer before they are sent.
 
 The location readout shows `LOCATING…` while a position is being resolved, `NO LOCATION` when the browser refuses or cannot supply one, `NO PERMISSION` when the location permission is not granted, and `NO CONSENT` when Firefox's data-collection consent is missing. On Firefox, switching to `APPROX` or `PRECISE` may also raise that consent; declining it at the prompt leaves the mode unchanged. Picking `PRECISE` reloads the page when the location permission is granted while the page is open.
 
@@ -114,7 +118,7 @@ The line under the buttons reports the last action: `SAVED`, `LOADED`, `NOT A CO
 
 The browser puts keyboard focus in the address bar on every new tab; the page cannot take it. Press `TAB` once to move focus into the page. From there, press a panel's letter to open it, then a link's letter to follow it.
 
-Press `/` and it types a slash, after which everything you type is text. `ENTER` searches, `BACKSPACE` deletes, `ESC` clears. A single letter right after the slash picks an engine for that one search — `/w pixel art` goes to Wikipedia.
+Press `/` and it types a slash, after which everything you type is text. `ENTER` searches, `BACKSPACE` deletes, `ESC` clears. A single letter right after the slash picks an engine for that one search, so `/w pixel art` goes to Wikipedia.
 
 ## QUOTES
 
@@ -242,7 +246,7 @@ The ID is wrong, or the gist holds no `jp-startpage.json`.
 
 The request did not complete, usually the network.
 
-**The token never leaves the browser you typed it into**: it is excluded from both synced payloads and from the `10 CONFIG` export, so sharing a config cannot leak it. Treat the ID as semi-private and type it into each browser by hand. **Dropped images do not sync** on either path; they stay in the browser they were dropped into.
+**The token never leaves the browser you typed it into.** It is excluded from both synced payloads and from the `10 CONFIG` export, so sharing a config cannot leak it. Treat the ID as semi-private and type it into each browser by hand. Dropped images do not sync on either path; they stay in the browser they were dropped into.
 
 The token is stored in plain localStorage, which anyone with access to that browser profile can read. localStorage is also shared across an origin: every site under the same `username.github.io` shares one store. Any other GitHub Pages site on that account could therefore read a token pasted into a Pages-hosted copy. Keep gist sync to the extension or a locally opened copy.
 
@@ -252,9 +256,9 @@ No accounts, no analytics, no server. Nothing reaches me. What leaves your machi
 
 ## AI DILIGENCE
 
-I built this with AI assistance. The interface started in Claude Design, and Anthropic's Claude wrote most of the code under my direction. I set the behavior, reviewed the changes, and tested in Chrome and Firefox. A review pass before the first release found 42 defects, all fixed.
+I built this with AI assistance. The interface started in Claude Design, and Anthropic's Claude wrote most of the code under my direction. I decided how it should behave and reviewed what went in, then tested it in Chrome and Firefox. A review pass before the first release turned up 42 defects, which are fixed.
 
-The extension is provided as is, with no warranty. All of it is in this repository, so read the source and judge it yourself.
+The extension is provided as is, with no warranty. The whole of it is in this repository if you want to check any of that for yourself.
 
 ## LICENSE
 

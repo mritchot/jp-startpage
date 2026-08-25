@@ -7,10 +7,10 @@ receives nothing. Nothing you do in the extension is reported anywhere.
 
 ## What is stored, and where
 
-Your settings — panels, links, hotkeys, colors, greeting, weather city, search
-engines and quotes — are held in your browser's local storage on your own
-machine. Dropped images are held beside them in the browser's IndexedDB, also
-on your own machine.
+Your browser's local storage holds your settings on your own machine: panels,
+links, hotkeys, colors, greeting, weather city, search engines and quotes.
+Dropped images sit beside them in the browser's IndexedDB, also on your own
+machine.
 
 If you turn on **profile sync**, those settings are also written to your
 browser's own extension storage, which Chrome and Firefox replicate between
@@ -21,20 +21,21 @@ included. Profile sync is off until you switch it on.
 
 ## What leaves your machine
 
-Four features contact other services. Each is described below, and none of them
-sends anything to the developer.
+Four features contact other services. None of them sends anything to the
+developer.
 
 **Weather.** The extension requests a forecast from
 [Open-Meteo](https://open-meteo.com) to show current conditions. A new tab
 triggers the request, unless a recent forecast is cached. It repeats every 30
 minutes while the page is open. What it sends depends on the mode:
 
-- `MANUAL`, the default, sends only the city name — `TOKYO` until you change it.
+- `MANUAL`, the default, sends only the city name, which is `TOKYO` until you
+  change it.
 - `APPROX` first asks [ipapi.co](https://ipapi.co) to estimate your position
   from your IP address. Any web request necessarily discloses your IP to the
   service you contact; this one uses it to return an approximate city.
-- `PRECISE` asks the browser for your location, which prompts you first, and
-  requires the optional `geolocation` permission that the extension requests
+- `PRECISE` reads your location from the browser's own location service. It
+  requires the optional `geolocation` permission, which the extension asks for
   only when you select this mode. Coordinates are rounded to roughly one
   kilometer before the forecast request is made.
 
@@ -42,8 +43,8 @@ Your position is never stored and never transmitted to the developer.
 
 **Favicons.** Off by default. When switched on, the extension asks Google for
 an icon for each link's domain, which discloses those domains to Google.
-Addresses on internal networks — IP literals and `.local`, `.lan`, `.internal`
-and `.home.arpa` hostnames — are excluded and never sent.
+Addresses on internal networks are excluded and never sent. That covers IP
+literals and `.local`, `.lan`, `.internal` and `.home.arpa` hostnames.
 
 **Remote quotes.** Only if you paste a URL into the quote source. The extension
 fetches that file from wherever you pointed it.
@@ -67,9 +68,9 @@ purposes, and never used to assess creditworthiness or for lending.
 ## Removing your data
 
 Uninstalling the extension removes its local storage and its image store.
-`RESET DEFAULTS` in the config tray clears everything without uninstalling. Turning profile sync off
-stops further writes; to clear what your browser already replicated, use your
-browser's own sync data controls.
+`RESET DEFAULTS` in the config tray clears everything without uninstalling.
+Turning profile sync off stops further writes. To clear what your browser has
+already replicated, use your browser's own sync data controls.
 
 ## Source
 
