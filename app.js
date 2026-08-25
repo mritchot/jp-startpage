@@ -74,7 +74,7 @@ var WMO = {
 };
 
 /* fallback values, shown until a live fetch lands */
-var WX  = { c: 26, hi: 29, lo: 21, cond: 'CLEAR', kana: '晴', live: false };
+var WX  = { c: 26, hi: 29, lo: 21, cond: 'CLEAR', kana: '晴' };
 
 /* ------------------------------------------------------------------ *
  * state
@@ -220,6 +220,32 @@ function set(patch, theme) {
   if (theme) applyTheme(); else applySizing();
   render();
   persist();
+}
+
+/* Command-line edits change only S.line; the rail and the tray never read it,
+   so a text repaint is the whole update — no strip or tray rebuild. */
+function setLine(line) { S.line = line; paint(); }
+
+/* A focused tray field owns its own value: recreating it mid-type is what the
+   old snapFocus/restoreFocus dance had to undo, and what broke IME composition.
+   A field edit updates state and runs its own side effect, but skips the tray
+   rebuild. Derived readouts (dup marks, the HEIGHT value, the active band, the
+   engine and panel selects) reconcile on focusout through renderTray().
+   Structural changes — toggles, add/delete, mode switches, drag — still use
+   set()/setState() and rebuild in full. */
+function fieldEdit(patch, opt) {
+  opt = opt || {};
+  Object.assign(S, patch);
+  if (opt.theme) applyTheme(); else applySizing();
+  if (opt.rail) renderPanels();      /* a name/key/link edit shows in the rail */
+  if (opt.quotes) applyQuotes();
+  paint();
+  persist();
+}
+function editCatField(patch) {
+  fieldEdit({ cats: S.cats.map(function (c) {
+    return c.id === S.editCatId ? Object.assign({}, c, patch) : c;
+  }) }, { rail: true });
 }
 
 /* ------------------------------------------------------------------ *
@@ -471,7 +497,7 @@ function curImg() { return S.imgs[S.imgIdx] || null; }
 
 function saveImages(imgs) {
   var meta = imgs.map(function (im) {
-    var o = { id: im.id, name: im.name, s: im.s, x: im.x, y: im.y };
+    var o = { id: im.id, s: im.s, x: im.x, y: im.y };
     if (im.src) o.src = im.src;   /* legacy entry, blob not stored yet */
     return o;
   });
@@ -487,12 +513,21 @@ function setImgs(imgs, idx) {
 }
 
 function loadImages() {
-  var raw = null, stored = [];
-  try { raw = localStorage.getItem(IMG_KEY); stored = JSON.parse(raw || '[]') || []; }
-  catch (e) { stored = []; }
+  var raw = null, readOk = true, stored = null;
+  try { raw = localStorage.getItem(IMG_KEY); }
+  catch (e) { readOk = false; raw = null; }
+  if (readOk) { try { stored = JSON.parse(raw || '[]') || []; } catch (e) { stored = null; } }
+  if (stored === null) {
+    /* Read or parse FAILED. A failure must never read as an empty store: leave
+       every blob intact (no purge), surface the error, and retry next boot —
+       the same contract idbAll/psGet enforce. */
+    _storeWarn = 'STORAGE ERROR';
+    applyImage(); paint();
+    return;
+  }
   if (!stored.length) {
     applyImage();
-    if (!raw) idbClear();   /* no metadata at all: purge any orphaned blobs */
+    if (raw == null) idbClear();   /* metadata genuinely absent: purge any orphaned blobs */
     return;
   }
   var idx = S.imgIdx;
@@ -550,7 +585,7 @@ function ingest(files) {
   list.forEach(function (f) {
     var id = 'i' + Date.now() + Math.random().toString(36).slice(2, 6);
     idbPut(id, f, function (ok, w) {
-      if (ok) { holdUrl(id, f); added.push({ id: id, name: f.name, s: 1, x: 0, y: 0 }); }
+      if (ok) { holdUrl(id, f); added.push({ id: id, s: 1, x: 0, y: 0 }); }
       else warn = w;
       if (--pending === 0) {
         if (added.length) setImgs(S.imgs.concat(added), S.imgs.length);
@@ -775,13 +810,14 @@ function forecastAt(lat, lon, label, key) {
     '&daily=temperature_2m_max,temperature_2m_min')
     .then(function (r) { return r.json(); })
     .then(function (f) {
+      if (_wxKey !== key) return;   /* a newer mode/city fetch has since run; do not overwrite it */
       if (!f || !f.current || !f.daily) throw 0;
       var code = WMO[f.current.weather_code] || ['—', '—'];
       var wx = {
         c:  Math.round(f.current.temperature_2m),
         hi: Math.round(f.daily.temperature_2m_max[0]),
         lo: Math.round(f.daily.temperature_2m_min[0]),
-        cond: code[0], kana: code[1], live: true
+        cond: code[0], kana: code[1]
       };
       WX = wx;
       WX_LABEL = label || tzLabel(f.timezone) || WX_LABEL;
@@ -940,6 +976,26 @@ function sanitizeCats(cats) {
   return out.length ? out : null;
 }
 
+/* Theme colours reach applyTheme() -> style.setProperty and body.style
+   unvalidated: shaped() gates only on type, so an imported, pulled, synced or
+   locally tampered payload could carry any CSS string (a url(...) beacon, an
+   overlay) where a #hex belongs. Force every colour to a #RGB/#RRGGBB literal
+   and every slot index into range before it can reach a sink. */
+function hexColor(v, fb) {
+  return (typeof v === 'string' && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v.trim())) ? v.trim() : fb;
+}
+function themePair(v, def) {
+  v = (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
+  return { d: hexColor(v.d, def.d), l: hexColor(v.l, def.l) };
+}
+function sanitizeTheme(t) {
+  var d = defaults().theme;
+  t = (t && typeof t === 'object' && !Array.isArray(t)) ? t : {};
+  var slot = function (v) { return (v === 1 || v === 2 || v === 3) ? v : 0; };
+  return { a: slot(t.a), b: slot(t.b), grid: t.grid !== false,
+           ac: themePair(t.ac, d.ac), gc: themePair(t.gc, d.gc) };
+}
+
 /* A payload value lands only where its shape matches the defaults: a null or
    mistyped leaf keeps the current value instead of poisoning S, where a later
    persist() would carry it into localStorage and crash the next boot. */
@@ -960,6 +1016,7 @@ function applyConfig(o) {
     if (k === 'cats' || o[k] === undefined) return;
     S[k] = shaped(base[k], o[k], S[k]);
   });
+  S.theme = sanitizeTheme(S.theme);
   var cats = sanitizeCats(o.cats);
   if (cats) S.cats = cats;
   if (!S.cats.some(function (c) { return c.id === S.editCatId; })) S.editCatId = S.cats[0].id;
@@ -1097,12 +1154,8 @@ function psGet(cb) {
 }
 
 function psUnpack(all) {
-  if (!all || !all.pmeta || !all.pmeta.n) return null;
-  var raw = '';
-  for (var i = 0; i < all.pmeta.n; i++) {
-    if (typeof all['p' + i] !== 'string') return null;
-    raw += all['p' + i];
-  }
+  var raw = psRaw(all);
+  if (raw === null) return null;
   try {
     var o = JSON.parse(raw);
     if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
@@ -1335,7 +1388,7 @@ function submitLine() {
   var r = parseQuery(queryText());
   if (!r.term.trim()) return;
   location.href = searchUrl(r.eng, r.term.trim());
-  setState({ line: '' });
+  setLine('');
 }
 
 /* ------------------------------------------------------------------ *
@@ -1348,10 +1401,10 @@ function handleKey(e) {
 
   /* once the line holds a slash every keystroke is text, not a shortcut */
   if (typing()) {
-    if (e.key === 'Escape')    { e.preventDefault(); setState({ line: '' }); return; }
+    if (e.key === 'Escape')    { e.preventDefault(); setLine(''); return; }
     if (e.key === 'Enter')     { e.preventDefault(); submitLine(); return; }
-    if (e.key === 'Backspace') { e.preventDefault(); setState({ line: S.line.slice(0, -1) }); return; }
-    if (e.key.length === 1)    { e.preventDefault(); setState({ line: S.line + e.key }); return; }
+    if (e.key === 'Backspace') { e.preventDefault(); setLine(S.line.slice(0, -1)); return; }
+    if (e.key.length === 1)    { e.preventDefault(); setLine(S.line + e.key); return; }
     return;
   }
 
@@ -1363,7 +1416,7 @@ function handleKey(e) {
   if (e.key === '/' && S.searchEnabled) {
     e.preventDefault();
     try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch (err) {}
-    setState({ line: '/' });
+    setLine('/');
     return;
   }
 
@@ -1386,7 +1439,7 @@ function handleKey(e) {
     var same = S.openId === cat.id;
     setState({ openId: same ? null : cat.id, line: same ? '' : k });
   } else {
-    setState({ line: '?' });
+    setLine('?');
   }
 }
 
@@ -1396,7 +1449,7 @@ function handlePaste(e) {
   var t = cd ? (cd.getData('text') || '') : '';
   if (!t) return;
   e.preventDefault();
-  setState({ line: S.line + t.replace(/[\r\n]+/g, ' ') });
+  setLine(S.line + t.replace(/[\r\n]+/g, ' '));
 }
 
 /* ------------------------------------------------------------------ *
@@ -1556,6 +1609,18 @@ function buildShell() {
   ]);
 
   D.trayHost = h('div');
+  /* Delegated on the stable host, not the rebuilt inputs: composition events
+     bubble here and survive every tray rebuild. */
+  D.trayHost.addEventListener('compositionstart', function () { _composing = true; });
+  D.trayHost.addEventListener('compositionend', function () { _composing = false; renderTray(); });
+  /* Field edits skip the tray rebuild for speed; reconcile the derived readouts
+     once focus leaves a text field. Deferred so focus settles first — if it
+     moved to another field, renderTray's snapFocus/restoreFocus carry it over. */
+  D.trayHost.addEventListener('focusout', function (e) {
+    var tag = e.target && e.target.tagName;
+    if (tag !== 'INPUT' && tag !== 'TEXTAREA') return;
+    setTimeout(function () { if (S.trayOpen && !_composing) renderTray(); }, 0);
+  });
 
   D.root.appendChild(frag([D.rail, D.quote, D.wx, D.cmd, D.cfgBtn, D.trayHost, D.vig, D.grid]));
 
@@ -1897,8 +1962,17 @@ function openLinkEdit(i) { setLinkEdit(S.editLinkIdx === i ? null : i); }
 function closeLinkEdit() { setLinkEdit(null); }
 
 function patchLink(i, o) {
-  updateCat({ links: (editCat().links || []).map(function (x, j) {
+  editCatField({ links: (editCat().links || []).map(function (x, j) {
     return j === i ? Object.assign({}, x, o) : x;
+  }) });
+}
+/* The key field carries the live duplicate warning, so it takes the full render
+   path — a single-character field, so the rebuild is imperceptible. Label and
+   URL edits (multi-character, IME-capable, no derived readout) keep the
+   no-rebuild fieldEdit path through patchLink. */
+function patchLinkKey(i, key) {
+  updateCat({ links: (editCat().links || []).map(function (x, j) {
+    return j === i ? Object.assign({}, x, { key: key }) : x;
   }) });
 }
 
@@ -1907,7 +1981,7 @@ function patchLink(i, o) {
 function buildLinkEdit(l, i, dupe) {
   var commit = { keydown: function (e) { if (e.key === 'Enter') { e.preventDefault(); closeLinkEdit(); } } };
   var keyIn = field('el-k', l.key, function (e) {
-    patchLink(i, { key: e.target.value.slice(0, 1).toLowerCase() });
+    patchLinkKey(i, e.target.value.slice(0, 1).toLowerCase());
   }, { c: 'tiny' + (dupe[String(l.key || '').toLowerCase()] ? ' bad' : ''), max: '1',
        s: 'width:34px;flex:none;color:var(--accent);text-align:center;padding:8px 4px', on: commit });
   var labIn = field('el-l', l.label, function (e) {
@@ -1926,8 +2000,7 @@ function buildLinkEdit(l, i, dupe) {
   ]);
 }
 
-function buildLinkRow(l, i) {
-  var dupe = dupeKeys(editCat().links);
+function buildLinkRow(l, i, dupe) {
   if (S.editLinkIdx === i) return buildLinkEdit(l, i, dupe);
 
   var lid = linkKey(l);
@@ -1989,14 +2062,23 @@ function buildLinkRow(l, i) {
   }
 }
 
+/* True between compositionstart and compositionend on a tray field. An IME
+   builds a word across several keystrokes bound to one <input> node; tearing
+   that node down mid-compose drops the pre-edit, so the rebuild waits. */
+var _composing = false;
+
 function renderTray() {
   if (S.trayOpen && _dragL != null && D.tray && D.linksBox) { reflowLinks(); return; }
+  /* Hold the rebuild while an IME composition is live in the tray. paint() and
+     renderPanels() still run each keystroke, so the greeting preview stays
+     current; compositionend fires one rebuild to reconcile. */
+  if (_composing && S.trayOpen && D.tray) return;
   var focus = snapFocus();
   var scrolled = D.tray ? D.tray.scrollTop : 0;
   clear(D.trayHost);
   D.tray = null;
   D.linksBox = null;
-  if (!S.trayOpen) return;
+  if (!S.trayOpen) { _composing = false; return; }
 
   var ec = editCat();
   var sizing = computeSizing();
@@ -2058,7 +2140,7 @@ function renderTray() {
           a: { 'data-k': 'hr-' + k, maxlength: '2' },
           on: { input: function (e) {
             var v = Math.max(0, Math.min(23, parseInt(e.target.value, 10) || 0));
-            set({ bands: Object.assign({}, S.bands, defineOne(k, v)) });
+            fieldEdit({ bands: Object.assign({}, S.bands, defineOne(k, v)) });
           } }
         });
         hourIn.value = String(S.bands[k]);
@@ -2066,13 +2148,13 @@ function renderTray() {
           hourIn,
           h('span', { c: 'band', s: 'color:' + col, t: kana[k] }),
           field('gr-' + k, S.greets[k], function (e) {
-            set({ greets: Object.assign({}, S.greets, defineOne(k, e.target.value)) });
+            fieldEdit({ greets: Object.assign({}, S.greets, defineOne(k, e.target.value)) });
           })
         ]);
       })
     );
   } else {
-    greetBody = field('greeting', S.greeting, function (e) { set({ greeting: e.target.value }); },
+    greetBody = field('greeting', S.greeting, function (e) { fieldEdit({ greeting: e.target.value }); },
       { s: 'flex:none;width:100%;box-sizing:border-box' });
   }
   var s03 = sec(null, [
@@ -2112,7 +2194,7 @@ function renderTray() {
     S.geoMode === 'manual'
       ? h('div', { c: 'row' }, [
           field('city', S.city, function (e) {
-            set({ city: e.target.value.toUpperCase() });
+            fieldEdit({ city: e.target.value.toUpperCase() });
             clearTimeout(_wxDebounce);
             _wxDebounce = setTimeout(function () { fetchWeather(); }, 700);
           }),
@@ -2144,7 +2226,7 @@ function renderTray() {
     })),
     S.quoteSource === 'custom' ? qCustom : null,
     S.quoteSource === 'url' ? h('div', { c: 'row' }, [
-      field('gist', S.gistUrl, function (e) { set({ gistUrl: e.target.value }); },
+      field('gist', S.gistUrl, function (e) { fieldEdit({ gistUrl: e.target.value }); },
         { c: 'tiny', ph: 'raw gist URL', s: 'font-size:11px;padding:9px 10px' }),
       D.pull
     ]) : null,
@@ -2172,8 +2254,9 @@ function renderTray() {
   }));
   catSel.value = S.editCatId;
 
+  var linkDupe = dupeKeys(ec.links);
   D.linksBox = h('div', { s: 'display:flex;flex-direction:column;gap:3px;margin-top:2px' },
-    (ec.links || []).map(buildLinkRow));
+    (ec.links || []).map(function (l, i) { return buildLinkRow(l, i, linkDupe); }));
 
   var s06 = sec(null, [
     head('06 PANELS · パネル'),
@@ -2192,16 +2275,16 @@ function renderTray() {
       }, { warn: 1, al: 'Delete panel', s: 'width:44px;flex:none;font-size:11px;letter-spacing:0' })
     ]),
     h('div', { c: 'row' }, [
-      field('catname', ec.name, function (e) { updateCat({ name: e.target.value }); }),
+      field('catname', ec.name, function (e) { editCatField({ name: e.target.value }); }),
       field('catkey', ec.key, function (e) { updateCat({ key: e.target.value.slice(0, 1).toLowerCase() }); },
         { c: 'key' + (dupeKeys(S.cats)[String(ec.key || '').toLowerCase()] ? ' bad' : ''), max: '1' })
     ]),
     D.linksBox,
     h('div', { s: 'display:flex;gap:6px;margin-top:4px' }, [
-      field('nl', S.nl, function (e) { setState({ nl: e.target.value }); }, { c: 'tiny', ph: 'label' }),
-      field('nk', S.nk, function (e) { setState({ nk: e.target.value.slice(0, 1).toLowerCase() }); },
+      field('nl', S.nl, function (e) { S.nl = e.target.value; }, { c: 'tiny', ph: 'label' }),
+      field('nk', S.nk, function (e) { S.nk = e.target.value.slice(0, 1).toLowerCase(); e.target.value = S.nk; },
         { c: 'tiny', max: '1', s: 'width:34px;flex:none;color:var(--accent);text-align:center;padding:8px 4px' }),
-      field('nu', S.nu, function (e) { setState({ nu: e.target.value }); }, { c: 'tiny', ph: 'url' }),
+      field('nu', S.nu, function (e) { S.nu = e.target.value; }, { c: 'tiny', ph: 'url' }),
       btn('ADD', function () {
         if (!S.nl.trim()) return;
         var label = S.nl.trim();
@@ -2271,7 +2354,7 @@ function renderTray() {
       btn(S.searchEnabled ? 'SEARCH ON' : 'SEARCH OFF', function () { set({ searchEnabled: !S.searchEnabled }); },
         { s: 'width:96px;flex:none' })
     ]),
-    field('engcustom', S.engineCustom, function (e) { set({ engineCustom: e.target.value }); },
+    field('engcustom', S.engineCustom, function (e) { fieldEdit({ engineCustom: e.target.value }); },
       { c: 'tiny', ph: 'https://example.com/search?q=%s' })
   ]);
 
@@ -2279,7 +2362,7 @@ function renderTray() {
   var s09 = sec(null, [
     head('09 TAB · タブ'),
     h('div', { c: 'row' }, [
-      field('tabtitle', S.tabTitle, function (e) { set({ tabTitle: e.target.value }, true); }),
+      field('tabtitle', S.tabTitle, function (e) { fieldEdit({ tabTitle: e.target.value }, { theme: true }); }),
     ])
   ]);
 
@@ -2307,7 +2390,7 @@ function renderTray() {
     syncBody = [
       h('div', { c: 'row' }, [tokenField]),
       h('div', { c: 'row' }, [
-        field('gid', S.gistId, function (e) { set({ gistId: e.target.value.trim() }); },
+        field('gid', S.gistId, function (e) { fieldEdit({ gistId: e.target.value.trim() }); },
           { c: 'tiny', ph: 'gist id (filled on first push)' })
       ]),
       h('div', { c: 'row' }, [
@@ -2331,7 +2414,7 @@ function renderTray() {
         btn('PUSH', function () { psPush(true); }, { f: 1 }),
         btn('PULL', function () { psPull(true); }, { f: 1 })
       ]),
-      (_psMsg || psStamp()) ? note(_psMsg || psStamp()) : null
+      note(_psMsg || psStamp())
     ];
   }
 
@@ -2395,6 +2478,7 @@ function boot() {
       delete saved.theme.invert;
     }
     Object.assign(S, saved);
+    S.theme = sanitizeTheme(S.theme);
     if (!S.cats.some(function (c) { return c.id === S.editCatId; })) S.editCatId = S.cats[0].id;
   }
   applyQuotes();
