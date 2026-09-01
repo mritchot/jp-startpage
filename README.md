@@ -78,6 +78,8 @@ The active row is highlighted. Font size is fixed against the longest of the fou
 
 The location readout shows `LOCATING…` while a position is being resolved, `NO LOCATION` when the browser refuses or cannot supply one, `NO PERMISSION` when the location permission is not granted, and `NO CONSENT` when Firefox's data-collection consent is missing. On Firefox, switching to `APPROX` or `PRECISE` may also raise that consent; declining it at the prompt leaves the mode unchanged. Picking `PRECISE` reloads the page when the location permission is granted while the page is open.
 
+On Chrome, no prompt appears. Chromium forbids extensions from requesting the location permission at runtime, so `PRECISE` can land on `NO PERMISSION` without ever asking. Allow location for the extension in Chrome's site settings (`chrome://settings/content/location`), then pick `PRECISE` again.
+
 **05 QUOTE · 引用**
 
 See the QUOTES section below.

@@ -726,28 +726,25 @@ var GEOMODES = [
   { id: 'precise', label: 'PRECISE' }
 ];
 
-/* Firefox 140+ gates optional data collection behind a browser-level grant the
-   manifest advertises; Chrome gates navigator.geolocation on extension pages
-   behind the optional geolocation permission. Each request runs only on the
-   platform that owns it, synchronously inside the click, and any API absence
-   or throw falls through as granted so neither browser can lose weather over
-   a permission call the platform does not support. */
-/* One request, because permissions.request() is only honoured inside the user
-   gesture that started it — a second call from the first one's callback is
-   already outside it and Firefox rejects it. Chrome rejects a request object
-   carrying data_collection, so each browser gets only the keys it knows. */
+/* Firefox 140+ gates optional data collection behind a browser-level grant
+   the manifest advertises, and PRECISE needs the geolocation permission
+   besides. Both ride one request, because permissions.request() is only
+   honoured inside the user gesture that started it — a second call from the
+   first one's callback is already outside it and Firefox rejects it. */
+/* Chromium gets no request at all: its geolocation permission is compiled
+   kFlagCannotBeOptional, so permissions.request() can never grant it and
+   settles with lastError instead. The grant that works there is the
+   site-level one on the extension's own origin; geoState reads it after the
+   mode is set. */
 function askGeo(precise, cb) {
   var done = psOnce(cb);
   try {
     var ff = typeof browser !== 'undefined' && browser.permissions && browser.permissions.request;
-    var api = ff ? browser : (typeof chrome !== 'undefined' && chrome.permissions && chrome.permissions.request ? chrome : null);
-    if (!api) { done(true); return; }
-    var req = {};
+    if (!ff) { done(true); return; }
+    var req = { data_collection: ['locationInfo'] };
     if (precise) req.permissions = ['geolocation'];
-    if (ff) req.data_collection = ['locationInfo'];
-    if (!req.permissions && !req.data_collection) { done(true); return; }
-    var r = api.permissions.request(req, function (ok) {
-      done(!!ok && !(api.runtime && api.runtime.lastError));
+    var r = browser.permissions.request(req, function (ok) {
+      done(!!ok && !(browser.runtime && browser.runtime.lastError));
     });
     if (r && typeof r.then === 'function') r.then(function (ok) { done(ok !== false); }, function () { done(true); });
   } catch (e) { done(true); }
@@ -763,28 +760,28 @@ function geoAllowed(cb) {
   cb(true);
 }
 
-/* Chrome hands a runtime grant to the extension, not to the document that
-   asked for it, so navigator.geolocation stays inert here until a fresh
-   document loads. _geoAtBoot records what this document started with, which
-   is what tells a grant that lands now apart from one already in place. */
+/* A grant can land while this document is open — a doorhanger answered in
+   Firefox, a site-settings flip in Chrome — and the document that asked does
+   not always get to use it. _geoAtBoot records the state this document
+   started with, which is what tells a grant that landed since apart from one
+   already in place; the click path reloads on that difference. */
 var _geoAtBoot = null;
 
 /* A settled request() is not proof of a grant. A call that never prompts —
    no gesture, a key the browser will not take, a throw the catch swallows —
    still settles, and reading that as success is what left the readout waiting
-   on a permission it never had. geoGranted reads the real state instead.
-   null means the question cannot be answered here, which is a plain web copy
-   with no extension API; the browser prompts for itself there. */
-function geoGranted(cb) {
+   on a permission it never had. geoState reads the effective state instead:
+   what a position request would actually meet, which on Chromium extension
+   pages is the site-level setting for the extension's own origin, not the
+   extension permission. null means the browser will not answer, and the
+   position request itself is the only probe left. */
+function geoState(cb) {
   var one = psOnce(cb);
   try {
-    var api = (typeof browser !== 'undefined' && browser.permissions && browser.permissions.contains) ? browser
-            : ((typeof chrome !== 'undefined' && chrome.permissions && chrome.permissions.contains) ? chrome : null);
-    if (!api) { one(null); return; }
-    var r = api.permissions.contains({ permissions: ['geolocation'] }, function (ok) {
-      one(api.runtime && api.runtime.lastError ? null : !!ok);
-    });
-    if (r && typeof r.then === 'function') r.then(function (ok) { one(!!ok); }, function () { one(null); });
+    navigator.permissions.query({ name: 'geolocation' }).then(
+      function (st) { one(st && st.state ? st.state : null); },
+      function () { one(null); }
+    );
   } catch (e) { one(null); }
 }
 
@@ -873,17 +870,17 @@ function fetchWeather(force) {
          permission, so a permission that never resolves fires neither
          callback and the readout waits forever. This guard is what ends it. */
       var guard = setTimeout(function () {
-        geoGranted(function (has) { geoFail(has === false ? 'NO PERMISSION' : 'NO LOCATION'); });
+        geoState(function (s) { geoFail(s === 'granted' || s === null ? 'NO LOCATION' : 'NO PERMISSION'); });
       }, 12000);
       navigator.geolocation.getCurrentPosition(
         function (pos) {
           clearTimeout(guard);
           forecastAt(pos.coords.latitude, pos.coords.longitude, '', key).catch(quiet);
         },
-        function () {
+        function (err) {
           /* denied or unavailable: without this the tray reads LOCATING… forever */
           clearTimeout(guard);
-          geoFail('NO LOCATION');
+          geoFail(err && err.code === 1 ? 'NO PERMISSION' : 'NO LOCATION');
         },
         { timeout: 10000, maximumAge: 600000 }
       );
@@ -2178,14 +2175,14 @@ function renderTray() {
           WX_LABEL = '';
           set({ geoMode: o.id });
           if (o.id !== 'precise') { fetchWeather(true); return; }
-          geoGranted(function (has) {
-            if (has === false) { geoFail('NO PERMISSION'); return; }
-            /* A grant this document did not load with cannot reach
-               navigator.geolocation, whether it arrived from the request above
-               or from the browser's own settings. Reloading is what makes
+          geoState(function (s) {
+            if (s === 'denied') { geoFail('NO PERMISSION'); return; }
+            /* A grant this document did not load with cannot always reach
+               navigator.geolocation, whether it came from a doorhanger or
+               from the browser's own settings. Reloading is what makes
                PRECISE work on the click instead of on the next new tab, and
                every setting is already persisted by the set() above. */
-            if (has === true && _geoAtBoot === false) { location.reload(); return; }
+            if (s === 'granted' && _geoAtBoot && _geoAtBoot !== 'granted') { location.reload(); return; }
             fetchWeather(true);
           });
         });
@@ -2488,7 +2485,7 @@ function boot() {
   render();
   applyTheme();
   loadImages();
-  geoGranted(function (g) { _geoAtBoot = g; });
+  geoState(function (s) { _geoAtBoot = s; });
   fetchWeather();
 
   window.addEventListener('keydown', handleKey);
