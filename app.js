@@ -733,16 +733,26 @@ var GEOMODES = [
    first one's callback is already outside it and Firefox rejects it. */
 /* Chromium gets no request at all: its geolocation permission is compiled
    kFlagCannotBeOptional, so permissions.request() can never grant it and
-   settles with lastError instead. The grant that works there is the
-   site-level one on the extension's own origin; geoState reads it after the
-   mode is set. */
+   settles with lastError instead. The manifest carries it as required, the
+   install grant is the only one there is, and geoState still reads the
+   effective state because a site-level block overrides it. */
+/* The combined request may name geolocation only while this build's manifest
+   lists it as optional — the Firefox package does, the Chrome-shaped tree
+   does not. Firefox rejects a request that names a required permission, and
+   the data_collection consent riding with it would die too. */
+function geoOptional() {
+  try {
+    var op = browser.runtime.getManifest().optional_permissions;
+    return !!op && op.indexOf('geolocation') !== -1;
+  } catch (e) { return false; }
+}
 function askGeo(precise, cb) {
   var done = psOnce(cb);
   try {
     var ff = typeof browser !== 'undefined' && browser.permissions && browser.permissions.request;
     if (!ff) { done(true); return; }
     var req = { data_collection: ['locationInfo'] };
-    if (precise) req.permissions = ['geolocation'];
+    if (precise && geoOptional()) req.permissions = ['geolocation'];
     var r = browser.permissions.request(req, function (ok) {
       done(!!ok && !(browser.runtime && browser.runtime.lastError));
     });

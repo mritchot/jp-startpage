@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**JP-Startpage** · last updated 26 August 2026
+**JP-Startpage** · last updated 2 September 2026
 
 JP-Startpage has no server, no accounts, and no analytics. The developer
 receives nothing.
@@ -34,9 +34,10 @@ minutes while the page is open. What it sends depends on the mode:
 - `APPROX` first asks [ipapi.co](https://ipapi.co) to estimate your position
   from your IP address. Any web request necessarily discloses your IP to the
   service you contact; this one uses it to return an approximate city.
-- `PRECISE` reads your location from the browser's own location service. It
-  requires the optional `geolocation` permission, which the extension asks for
-  only when you select this mode. Coordinates are rounded to roughly one
+- `PRECISE` reads your location from the browser's own location service.
+  Chrome grants the `geolocation` permission at install; Firefox asks the
+  first time you select this mode. Either way the extension reads a position
+  only while `PRECISE` is selected. Coordinates are rounded to roughly one
   kilometer before the forecast request is made.
 
 Your position is never stored and never transmitted to the developer.

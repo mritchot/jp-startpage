@@ -16,6 +16,8 @@ JP-Startpage installs as a browser extension and takes over your startpage and n
 
 **Add-ons.** Install from [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/jp-startpage/).
 
+The Add-ons build also sets your home page, so browser start and new windows open the startpage unless Firefox is set to restore the previous session. *Settings → Home* shows it as *Extension (JP-Startpage)* and lets you take the setting back. A manual install changes only the new tab.
+
 **Manual install.** Download this repo, then open `about:debugging` → *This Firefox* → *Load Temporary Add-on* and pick `manifest.json`. Firefox drops temporary add-ons on restart.
 
 Needs Firefox 142 or later.
@@ -78,7 +80,7 @@ The active row is highlighted. Font size is fixed against the longest of the fou
 
 The location readout shows `LOCATING…` while a position is being resolved, `NO LOCATION` when the browser refuses or cannot supply one, `NO PERMISSION` when the location permission is not granted, and `NO CONSENT` when Firefox's data-collection consent is missing. On Firefox, switching to `APPROX` or `PRECISE` may also raise that consent; declining it at the prompt leaves the mode unchanged. Picking `PRECISE` reloads the page when the location permission is granted while the page is open.
 
-On Chrome, no prompt appears. Chromium forbids extensions from requesting the location permission at runtime, so `PRECISE` can land on `NO PERMISSION` without ever asking. Allow location for the extension in Chrome's site settings (`chrome://settings/content/location`), then pick `PRECISE` again.
+On Chrome, no prompt appears. Chromium gives extensions no way to ask for location at runtime, so the extension carries the permission from install and `PRECISE` works at once. A `NO PERMISSION` readout means location is blocked for the extension in Chrome's site settings (`chrome://settings/content/location`); lift the block and pick `PRECISE` again.
 
 **05 QUOTE · 引用**
 
