@@ -89,7 +89,7 @@ function defaults() {
     syncTab: 'profile', profileSync: false, profileAt: 0,
     editCatId: 'workspace', editLinkIdx: null, nl: '', nk: '', nu: '',
     textScale: 1, fitMode: 'fit', boxH: 320,
-    align: 'top', imgs: [], imgIdx: 0, imgSched: 'day', imgAt: 0, quoteSched: 'day',
+    align: 'top', imgs: [], imgIdx: 0, imgSched: 'day', imgAt: 0, quoteSched: 'day', quoteAt: 0,
     engine: 'k', engineCustom: '', searchEnabled: true, linkIcons: false,
     greetMode: 'static', themeMode: 'auto',
     greets: { morning: 'おはよう', afternoon: 'こんにちは', evening: 'こんばんは', night: 'おやすみ' },
@@ -191,7 +191,7 @@ function persist() {
       gistUrl: S.gistUrl, quoteSource: S.quoteSource, quoteCustom: S.quoteCustom,
       theme: S.theme, cats: S.cats, quoteIdx: S.quoteIdx,
       textScale: S.textScale, fitMode: S.fitMode, boxH: S.boxH,
-      align: S.align, imgIdx: S.imgIdx, imgSched: S.imgSched, imgAt: S.imgAt, quoteSched: S.quoteSched,
+      align: S.align, imgIdx: S.imgIdx, imgSched: S.imgSched, imgAt: S.imgAt, quoteSched: S.quoteSched, quoteAt: S.quoteAt,
       engine: S.engine, engineCustom: S.engineCustom, searchEnabled: S.searchEnabled, linkIcons: S.linkIcons,
       greetMode: S.greetMode, greets: S.greets, bands: S.bands, themeMode: S.themeMode,
       tabTitle: S.tabTitle,
@@ -605,17 +605,17 @@ function bucketOf(sched, now) {
    boundary, so the boundary has to be detected on the next boot. 'open'
    and 'off' map to themselves in bucketOf and are never due here. */
 function imgDue(now) { return bucketOf(S.imgSched, S.imgAt || 0) !== bucketOf(S.imgSched, now); }
+function quoteDue(now) { return bucketOf(S.quoteSched, S.quoteAt || 0) !== bucketOf(S.quoteSched, now); }
 
-var _qBucket;
 function tickQuoteRotation() {
-  var b = bucketOf(S.quoteSched, Date.now());
-  if (_qBucket === undefined) { _qBucket = b; return; }
-  if (b === _qBucket) return;
-  _qBucket = b;
+  var now = Date.now();
+  if (!quoteDue(now)) return;
+  S.quoteAt = now;
   if (QUOTES.length > 1) {
     S.quoteIdx = (S.quoteIdx + 1) % QUOTES.length;
-    paint(); persist();
+    paint();
   }
+  persist();
 }
 
 function tickRotation() {
@@ -1033,7 +1033,7 @@ function applyConfig(o) {
   if (S.openId && !S.cats.some(function (c) { return c.id === S.openId; })) S.openId = null;
   S.editLinkIdx = null;
   S.imgAt = Date.now();
-  _qBucket = undefined;
+  S.quoteAt = Date.now();
   applyQuotes();
   applyTheme();
   render();
@@ -2228,7 +2228,7 @@ function renderTray() {
     head('05 QUOTE · 引用'),
     h('div', { c: 'row' }, QSOURCES.map(function (o) {
       return h('div', { c: 'opt' + (S.quoteSource === o.id ? ' on' : ''), t: o.label, btn: 1, on: { click: function () {
-        _qBucket = undefined;
+        S.quoteAt = Date.now();
         S.quoteSource = o.id; S.quoteIdx = 0;
         applyQuotes();
         set({ quoteSource: o.id, quoteIdx: 0 });
@@ -2244,8 +2244,7 @@ function renderTray() {
       h('span', { c: 'lab', t: 'ROTATE' }),
       h('div', { s: 'flex:1;display:flex;gap:5px' }, SCHED.map(function (o) {
         return h('div', { c: 'opt' + (S.quoteSched === o.id ? ' on' : ''), t: o.label, btn: 1, on: { click: function () {
-          _qBucket = undefined;
-          set({ quoteSched: o.id });
+          set({ quoteSched: o.id, quoteAt: Date.now() });
         } } });
       }))
     ])
@@ -2491,8 +2490,14 @@ function boot() {
     if (!S.cats.some(function (c) { return c.id === S.editCatId; })) S.editCatId = S.cats[0].id;
   }
   applyQuotes();
-  if (S.quoteSched === 'open' && QUOTES.length > 1) S.quoteIdx = (S.quoteIdx + 1) % QUOTES.length;
-  _qBucket = bucketOf(S.quoteSched, Date.now());
+  /* Nothing else persists at boot when there are no images, so a quote
+     advance writes itself: otherwise the stamp stays stale and every load
+     advances from the same index. */
+  var qNow = Date.now(), qDue = quoteDue(qNow);
+  var qAdv = QUOTES.length > 1 && (S.quoteSched === 'open' || qDue);
+  if (qAdv) S.quoteIdx = (S.quoteIdx + 1) % QUOTES.length;
+  if (qDue) S.quoteAt = qNow;
+  if (qAdv || qDue) persist();
 
   render();
   applyTheme();
