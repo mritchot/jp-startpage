@@ -89,7 +89,7 @@ function defaults() {
     syncTab: 'profile', profileSync: false, profileAt: 0,
     editCatId: 'workspace', editLinkIdx: null, nl: '', nk: '', nu: '',
     textScale: 1, fitMode: 'fit', boxH: 320,
-    align: 'top', imgs: [], imgIdx: 0, imgSched: 'day', quoteSched: 'day',
+    align: 'top', imgs: [], imgIdx: 0, imgSched: 'day', imgAt: 0, quoteSched: 'day',
     engine: 'k', engineCustom: '', searchEnabled: true, linkIcons: false,
     greetMode: 'static', themeMode: 'auto',
     greets: { morning: 'おはよう', afternoon: 'こんにちは', evening: 'こんばんは', night: 'おやすみ' },
@@ -191,7 +191,7 @@ function persist() {
       gistUrl: S.gistUrl, quoteSource: S.quoteSource, quoteCustom: S.quoteCustom,
       theme: S.theme, cats: S.cats, quoteIdx: S.quoteIdx,
       textScale: S.textScale, fitMode: S.fitMode, boxH: S.boxH,
-      align: S.align, imgIdx: S.imgIdx, imgSched: S.imgSched, quoteSched: S.quoteSched,
+      align: S.align, imgIdx: S.imgIdx, imgSched: S.imgSched, imgAt: S.imgAt, quoteSched: S.quoteSched,
       engine: S.engine, engineCustom: S.engineCustom, searchEnabled: S.searchEnabled, linkIcons: S.linkIcons,
       greetMode: S.greetMode, greets: S.greets, bands: S.bands, themeMode: S.themeMode,
       tabTitle: S.tabTitle,
@@ -396,7 +396,6 @@ function applySizing() {
 /* ------------------------------------------------------------------ *
  * images
  * ------------------------------------------------------------------ */
-var _bucket;
 var _storeWarn = '';
 
 /* Binaries live as Blobs in IndexedDB; IMG_KEY keeps only the small metadata
@@ -530,9 +529,9 @@ function loadImages() {
     if (raw == null) idbClear();   /* metadata genuinely absent: purge any orphaned blobs */
     return;
   }
-  var idx = S.imgIdx;
-  if (S.imgSched === 'open' && stored.length > 1) idx = (idx + 1) % stored.length;
-  _bucket = bucketFor(Date.now());
+  var idx = S.imgIdx, now = Date.now(), due = imgDue(now);
+  if (stored.length > 1 && (S.imgSched === 'open' || due)) idx = (idx + 1) % stored.length;
+  if (due) S.imgAt = now;
   setState({ imgs: stored, imgIdx: Math.min(idx, stored.length - 1) }, function () {
     applyImage(); persist();
   });
@@ -601,7 +600,11 @@ function bucketOf(sched, now) {
   if (sched === 'week') return Math.floor(now / 604800000);
   return sched;
 }
-function bucketFor(now) { return bucketOf(S.imgSched, now); }
+/* The image schedule is checked against a persisted timestamp, not a
+   module variable: a new-tab page rarely lives across an hour or day
+   boundary, so the boundary has to be detected on the next boot. 'open'
+   and 'off' map to themselves in bucketOf and are never due here. */
+function imgDue(now) { return bucketOf(S.imgSched, S.imgAt || 0) !== bucketOf(S.imgSched, now); }
 
 var _qBucket;
 function tickQuoteRotation() {
@@ -616,15 +619,15 @@ function tickQuoteRotation() {
 }
 
 function tickRotation() {
-  var b = bucketFor(Date.now());
-  if (_bucket === undefined) { _bucket = b; return; }
-  if (b === _bucket) return;
-  _bucket = b;
+  var now = Date.now();
+  if (!imgDue(now)) return;
+  S.imgAt = now;
   if (S.imgs.length > 1) {
     S.imgIdx = (S.imgIdx + 1) % S.imgs.length;
-    applyImage(); persist(); paint();
+    applyImage(); paint();
     if (S.trayOpen) renderTray();
   }
+  persist();
 }
 
 function applyImage(live) {
@@ -1029,7 +1032,7 @@ function applyConfig(o) {
   if (!S.cats.some(function (c) { return c.id === S.editCatId; })) S.editCatId = S.cats[0].id;
   if (S.openId && !S.cats.some(function (c) { return c.id === S.openId; })) S.openId = null;
   S.editLinkIdx = null;
-  _bucket = undefined;
+  S.imgAt = Date.now();
   _qBucket = undefined;
   applyQuotes();
   applyTheme();
@@ -2341,8 +2344,7 @@ function renderTray() {
       h('span', { c: 'lab', t: 'ROTATE' }),
       h('div', { s: 'flex:1;display:flex;gap:5px' }, SCHED.map(function (o) {
         return h('div', { c: 'opt' + (S.imgSched === o.id ? ' on' : ''), t: o.label, btn: 1, on: { click: function () {
-          _bucket = undefined;
-          set({ imgSched: o.id });
+          set({ imgSched: o.id, imgAt: Date.now() });
         } } });
       }))
     ])
